@@ -261,12 +261,12 @@ class _SizeEstimateScreenState extends State<SizeEstimateScreen> {
                   ),
 
                 if (_simFallback && isScanning)
-                  const Positioned(
+                  Positioned(
                     bottom: 8, right: 8,
                     child: Container(
-                      padding: EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
                       color: AppColors.amber,
-                      child: Text('DEMO MODE', style: TextStyle(fontSize: 10, color: Colors.black, fontWeight: FontWeight.bold)),
+                      child: const Text('DEMO MODE', style: TextStyle(fontSize: 10, color: Colors.black, fontWeight: FontWeight.bold)),
                     ),
                   ),
 
