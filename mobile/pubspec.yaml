@@ -39,6 +39,13 @@ dependencies:
 
   # Permissions
   permission_handler: ^11.3.0
+  flutter_secure_storage: ^10.3.1
+  crypto: ^3.0.7
+  connectivity_plus: ^7.1.1
+  mqtt_client: ^10.11.11
+  drift: ^2.33.0
+  drift_flutter: ^0.3.0
+  sqlite3_flutter_libs: ^0.6.0+eol
 
 dev_dependencies:
   flutter_test:
