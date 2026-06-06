@@ -1,0 +1,1 @@
+fix: resolve null pointer exception in auth service
