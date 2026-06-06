@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
+import { tokenStorage, TokenData } from './tokenStorage';
+
 /**
  * HTTP methods supported by the API client
  */
@@ -30,6 +32,7 @@ export interface ApiClientConfig {
   timeout?: number;
   defaultHeaders?: Record<string, string>;
   enableLogging?: boolean;
+  enableAutoRefresh?: boolean;
 }
 
 /**
@@ -39,7 +42,28 @@ export interface RequestOptions {
   headers?: Record<string, string>;
   timeout?: number;
   signal?: AbortSignal;
+  skipAuth?: boolean;
+  skipRefresh?: boolean;
 }
+
+/**
+ * Token refresh response interface
+ */
+export interface TokenRefreshResponse {
+  accessToken: string;
+  refreshToken?: string;
+  expiresIn?: number;
+}
+
+/**
+ * Request interceptor function type
+ */
+export type RequestInterceptor = (url: string, options: RequestInit) => RequestInit | Promise<RequestInit>;
+
+/**
+ * Response interceptor function type
+ */
+export type ResponseInterceptor = (response: Response) => Response | Promise<Response>;
 
 /**
  * Custom API error class for better error handling
@@ -86,32 +110,136 @@ export class ApiError extends Error {
 
 /**
  * Main API Client class for handling HTTP requests to the SmartDispatch backend
+ * Enhanced with request/response interceptors and automatic JWT token handling
  */
 export class ApiClient {
   private baseUrl: string;
   private timeout: number;
   private defaultHeaders: Record<string, string>;
   private enableLogging: boolean;
-  private authToken: string | null = null;
+  private enableAutoRefresh: boolean;
+  private requestInterceptors: RequestInterceptor[] = [];
+  private responseInterceptors: ResponseInterceptor[] = [];
+  private isRefreshing = false;
+  private refreshPromise: Promise<void> | null = null;
+  private pendingRequests: Array<{
+    resolve: (value: any) => void;
+    reject: (reason: any) => void;
+    retry: () => Promise<any>;
+  }> = [];
 
   constructor(config: ApiClientConfig = {}) {
     this.baseUrl = config.baseUrl || 'http://localhost:8080/api';
     this.timeout = config.timeout || 10000; // 10 seconds default
     this.enableLogging = config.enableLogging || false;
+    this.enableAutoRefresh = config.enableAutoRefresh ?? true;
     this.defaultHeaders = {
       'Content-Type': 'application/json',
       'Accept': 'application/json',
       ...config.defaultHeaders,
     };
+
+    // Setup default interceptors
+    this.setupDefaultInterceptors();
   }
 
   /**
-   * Set JWT authentication token for API requests
+   * Setup default request and response interceptors
    */
-  setAuthToken(token: string | null): void {
-    this.authToken = token;
+  private setupDefaultInterceptors(): void {
+    // Request interceptor for JWT tokens
+    this.addRequestInterceptor(async (url: string, options: RequestInit) => {
+      // Skip auth for login/refresh endpoints
+      const isAuthEndpoint = url.includes('/auth/login') || url.includes('/auth/refresh') || url.includes('/auth/pin-login');
+      const skipAuth = (options as any).__skipAuth;
+      
+      if (!isAuthEndpoint && !skipAuth) {
+        const token = tokenStorage.getAccessToken();
+        if (token) {
+          const headers = new Headers(options.headers);
+          headers.set('Authorization', `Bearer ${token}`);
+          return { ...options, headers };
+        }
+      }
+      return options;
+    });
+
+    // Response interceptor for token refresh
+    this.addResponseInterceptor(async (response: Response) => {
+      // Handle 401 responses for automatic token refresh
+      if (response.status === 401 && this.enableAutoRefresh) {
+        const url = response.url;
+        const isAuthEndpoint = url.includes('/auth/login') || url.includes('/auth/refresh') || url.includes('/auth/pin-login');
+        
+        if (!isAuthEndpoint) {
+          await this.handleTokenRefresh();
+          
+          // Don't modify the original response, let the request be retried
+          return response;
+        }
+      }
+
+      // Handle 403 - clear tokens as they might be invalid
+      if (response.status === 403) {
+        const url = response.url;
+        const isAuthEndpoint = url.includes('/auth/');
+        
+        if (!isAuthEndpoint) {
+          this.clearAuthToken();
+          // Redirect to login if we have a way to do it
+          if (typeof window !== 'undefined' && window.location) {
+            window.location.href = '/login';
+          }
+        }
+      }
+
+      return response;
+    });
+  }
+
+  /**
+   * Add request interceptor
+   */
+  addRequestInterceptor(interceptor: RequestInterceptor): void {
+    this.requestInterceptors.push(interceptor);
+  }
+
+  /**
+   * Add response interceptor
+   */
+  addResponseInterceptor(interceptor: ResponseInterceptor): void {
+    this.responseInterceptors.push(interceptor);
+  }
+
+  /**
+   * Remove all interceptors
+   */
+  clearInterceptors(): void {
+    this.requestInterceptors = [];
+    this.responseInterceptors = [];
+    this.setupDefaultInterceptors();
+  }
+
+  /**
+   * Set JWT authentication token and refresh token
+   */
+  setAuthToken(accessToken: string, refreshToken?: string, expiresIn?: number): void {
+    const tokenData = tokenStorage.createTokenData(accessToken, refreshToken, expiresIn);
+    tokenStorage.setTokenData(tokenData);
+    
     if (this.enableLogging) {
-      console.log('ApiClient: Auth token', token ? 'set' : 'cleared');
+      console.log('ApiClient: Auth token set, expires at:', new Date(tokenData.expiresAt));
+    }
+  }
+
+  /**
+   * Set token data directly
+   */
+  setTokenData(tokenData: TokenData): void {
+    tokenStorage.setTokenData(tokenData);
+    
+    if (this.enableLogging) {
+      console.log('ApiClient: Token data set, expires at:', new Date(tokenData.expiresAt));
     }
   }
 
@@ -119,14 +247,109 @@ export class ApiClient {
    * Get current authentication token
    */
   getAuthToken(): string | null {
-    return this.authToken;
+    return tokenStorage.getAccessToken();
+  }
+
+  /**
+   * Check if user is authenticated with valid token
+   */
+  isAuthenticated(): boolean {
+    return tokenStorage.hasValidToken();
   }
 
   /**
    * Clear authentication token
    */
   clearAuthToken(): void {
-    this.setAuthToken(null);
+    tokenStorage.clearTokenData();
+    if (this.enableLogging) {
+      console.log('ApiClient: Auth token cleared');
+    }
+  }
+
+  /**
+   * Handle automatic token refresh
+   */
+  private async handleTokenRefresh(): Promise<void> {
+    // If already refreshing, wait for the existing refresh
+    if (this.isRefreshing && this.refreshPromise) {
+      return this.refreshPromise;
+    }
+
+    const refreshToken = tokenStorage.getRefreshToken();
+    if (!refreshToken) {
+      throw new ApiError(401, 'NO_REFRESH_TOKEN', 'No refresh token available');
+    }
+
+    this.isRefreshing = true;
+    this.refreshPromise = this.performTokenRefresh(refreshToken);
+
+    try {
+      await this.refreshPromise;
+      
+      // Resolve all pending requests
+      const requests = [...this.pendingRequests];
+      this.pendingRequests = [];
+      
+      for (const request of requests) {
+        try {
+          const result = await request.retry();
+          request.resolve(result);
+        } catch (error) {
+          request.reject(error);
+        }
+      }
+    } catch (error) {
+      // Reject all pending requests
+      const requests = [...this.pendingRequests];
+      this.pendingRequests = [];
+      
+      for (const request of requests) {
+        request.reject(error);
+      }
+      
+      // Clear tokens and redirect to login
+      this.clearAuthToken();
+      throw error;
+    } finally {
+      this.isRefreshing = false;
+      this.refreshPromise = null;
+    }
+  }
+
+  /**
+   * Perform the actual token refresh
+   */
+  private async performTokenRefresh(refreshToken: string): Promise<void> {
+    if (this.enableLogging) {
+      console.log('ApiClient: Refreshing token');
+    }
+
+    try {
+      const response = await fetch(this.buildUrl('auth/refresh'), {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ refreshToken }),
+      });
+
+      if (!response.ok) {
+        throw new ApiError(response.status, 'TOKEN_REFRESH_FAILED', 'Failed to refresh token');
+      }
+
+      const data: TokenRefreshResponse = await response.json();
+      this.setAuthToken(data.accessToken, data.refreshToken, data.expiresIn);
+
+      if (this.enableLogging) {
+        console.log('ApiClient: Token refreshed successfully');
+      }
+    } catch (error) {
+      if (this.enableLogging) {
+        console.error('ApiClient: Token refresh failed', error);
+      }
+      throw new ApiError(401, 'TOKEN_REFRESH_FAILED', 'Failed to refresh authentication token');
+    }
   }
 
   /**
@@ -144,13 +367,47 @@ export class ApiClient {
    * Build headers for request including auth token if available
    */
   private buildHeaders(customHeaders: Record<string, string> = {}): Record<string, string> {
-    const headers = { ...this.defaultHeaders, ...customHeaders };
-    
-    if (this.authToken) {
-      headers['Authorization'] = `Bearer ${this.authToken}`;
-    }
+    return { ...this.defaultHeaders, ...customHeaders };
+  }
 
-    return headers;
+  /**
+   * Apply request interceptors to the request options
+   */
+  private async applyRequestInterceptors(url: string, options: RequestInit): Promise<RequestInit> {
+    let modifiedOptions = options;
+    
+    for (const interceptor of this.requestInterceptors) {
+      try {
+        modifiedOptions = await interceptor(url, modifiedOptions);
+      } catch (error) {
+        if (this.enableLogging) {
+          console.warn('ApiClient: Request interceptor error', error);
+        }
+        // Continue with unmodified options if interceptor fails
+      }
+    }
+    
+    return modifiedOptions;
+  }
+
+  /**
+   * Apply response interceptors to the response
+   */
+  private async applyResponseInterceptors(response: Response): Promise<Response> {
+    let modifiedResponse = response;
+    
+    for (const interceptor of this.responseInterceptors) {
+      try {
+        modifiedResponse = await interceptor(modifiedResponse);
+      } catch (error) {
+        if (this.enableLogging) {
+          console.warn('ApiClient: Response interceptor error', error);
+        }
+        // Continue with unmodified response if interceptor fails
+      }
+    }
+    
+    return modifiedResponse;
   }
 
   /**
@@ -218,7 +475,7 @@ export class ApiClient {
   }
 
   /**
-   * Make HTTP request with comprehensive error handling
+   * Make HTTP request with comprehensive error handling and interceptors
    */
   private async makeRequest<T>(
     method: HttpMethod,
@@ -235,24 +492,81 @@ export class ApiClient {
     const signal = options.signal || timeoutController?.signal;
 
     // Build fetch options
-    const fetchOptions: RequestInit = {
+    let fetchOptions: RequestInit = {
       method,
       headers,
       signal,
     };
+
+    // Add special flags for interceptors
+    if (options.skipAuth) {
+      (fetchOptions as any).__skipAuth = true;
+    }
 
     // Add body for non-GET requests
     if (data && method !== 'GET') {
       fetchOptions.body = JSON.stringify(data);
     }
 
+    // Apply request interceptors
+    try {
+      fetchOptions = await this.applyRequestInterceptors(url, fetchOptions);
+    } catch (error) {
+      if (this.enableLogging) {
+        console.error('ApiClient: Request interceptor failed', error);
+      }
+      throw new ApiError(0, 'INTERCEPTOR_ERROR', 'Request interceptor failed');
+    }
+
     if (this.enableLogging) {
-      console.log(`ApiClient: ${method} ${url}`, { data, headers: Object.keys(headers) });
+      console.log(`ApiClient: ${method} ${url}`, { data, headers: Object.keys(fetchOptions.headers || {}) });
     }
 
     try {
       const response = await fetch(url, fetchOptions);
-      const result = await this.parseResponse<T>(response);
+      
+      // Apply response interceptors
+      let interceptedResponse: Response;
+      try {
+        interceptedResponse = await this.applyResponseInterceptors(response);
+      } catch (error) {
+        if (this.enableLogging) {
+          console.error('ApiClient: Response interceptor failed', error);
+        }
+        // Use original response if interceptor fails
+        interceptedResponse = response;
+      }
+
+      // Check if we need to retry due to token refresh
+      if (interceptedResponse.status === 401 && !options.skipRefresh && this.enableAutoRefresh) {
+        const isAuthEndpoint = url.includes('/auth/login') || url.includes('/auth/refresh') || url.includes('/auth/pin-login');
+        
+        if (!isAuthEndpoint) {
+          // If we're currently refreshing, queue this request
+          if (this.isRefreshing) {
+            return new Promise((resolve, reject) => {
+              this.pendingRequests.push({
+                resolve,
+                reject,
+                retry: () => this.makeRequest<T>(method, endpoint, data, { ...options, skipRefresh: true })
+              });
+            });
+          } else {
+            // Attempt token refresh and retry
+            try {
+              await this.handleTokenRefresh();
+              return this.makeRequest<T>(method, endpoint, data, { ...options, skipRefresh: true });
+            } catch (refreshError) {
+              // Token refresh failed, proceed with original 401 response
+              if (this.enableLogging) {
+                console.error('ApiClient: Token refresh failed, proceeding with 401', refreshError);
+              }
+            }
+          }
+        }
+      }
+
+      const result = await this.parseResponse<T>(interceptedResponse);
       
       if (this.enableLogging) {
         console.log(`ApiClient: ${method} ${url} - Success`, result);
@@ -334,7 +648,7 @@ export class ApiClient {
     options?: RequestOptions
   ): Promise<ApiResponse<T>> {
     const url = this.buildUrl(endpoint);
-    const headers = this.buildHeaders(options?.headers);
+    let headers = this.buildHeaders(options?.headers);
     
     // Remove Content-Type header to let browser set it with boundary
     delete headers['Content-Type'];
@@ -353,19 +667,74 @@ export class ApiClient {
     const timeoutController = options?.signal ? null : this.createTimeoutController(requestTimeout);
     const signal = options?.signal || timeoutController?.signal;
 
+    // Build fetch options
+    let fetchOptions: RequestInit = {
+      method: 'POST',
+      headers,
+      body: formData,
+      signal,
+    };
+
+    // Add special flags for interceptors
+    if (options?.skipAuth) {
+      (fetchOptions as any).__skipAuth = true;
+    }
+
+    // Apply request interceptors
+    try {
+      fetchOptions = await this.applyRequestInterceptors(url, fetchOptions);
+    } catch (error) {
+      if (this.enableLogging) {
+        console.error('ApiClient: Upload request interceptor failed', error);
+      }
+      throw new ApiError(0, 'INTERCEPTOR_ERROR', 'Upload request interceptor failed');
+    }
+
     if (this.enableLogging) {
       console.log(`ApiClient: POST ${url} - File upload`, { filename: file.name, size: file.size });
     }
 
     try {
-      const response = await fetch(url, {
-        method: 'POST',
-        headers,
-        body: formData,
-        signal,
-      });
+      const response = await fetch(url, fetchOptions);
 
-      const result = await this.parseResponse<T>(response);
+      // Apply response interceptors
+      let interceptedResponse: Response;
+      try {
+        interceptedResponse = await this.applyResponseInterceptors(response);
+      } catch (error) {
+        if (this.enableLogging) {
+          console.error('ApiClient: Upload response interceptor failed', error);
+        }
+        interceptedResponse = response;
+      }
+
+      // Handle 401 for file uploads with token refresh
+      if (interceptedResponse.status === 401 && !options?.skipRefresh && this.enableAutoRefresh) {
+        const isAuthEndpoint = url.includes('/auth/');
+        
+        if (!isAuthEndpoint) {
+          if (this.isRefreshing) {
+            return new Promise((resolve, reject) => {
+              this.pendingRequests.push({
+                resolve,
+                reject,
+                retry: () => this.uploadFile<T>(endpoint, file, additionalData, { ...options, skipRefresh: true })
+              });
+            });
+          } else {
+            try {
+              await this.handleTokenRefresh();
+              return this.uploadFile<T>(endpoint, file, additionalData, { ...options, skipRefresh: true });
+            } catch (refreshError) {
+              if (this.enableLogging) {
+                console.error('ApiClient: File upload token refresh failed', refreshError);
+              }
+            }
+          }
+        }
+      }
+
+      const result = await this.parseResponse<T>(interceptedResponse);
       
       if (this.enableLogging) {
         console.log(`ApiClient: POST ${url} - Upload success`, result);
@@ -403,7 +772,7 @@ export class ApiClient {
    */
   async healthCheck(): Promise<boolean> {
     try {
-      await this.get('/health', { timeout: 5000 });
+      await this.get('/health', { timeout: 5000, skipAuth: true });
       return true;
     } catch {
       return false;
@@ -440,12 +809,49 @@ export class ApiClient {
   setTimeout(timeout: number): void {
     this.timeout = timeout;
   }
+
+  /**
+   * Enable or disable automatic token refresh
+   */
+  setAutoRefresh(enabled: boolean): void {
+    this.enableAutoRefresh = enabled;
+  }
+
+  /**
+   * Get token expiry information
+   */
+  getTokenInfo(): {
+    hasToken: boolean;
+    isValid: boolean;
+    expiresIn: number; // milliseconds
+    expiresAt?: Date;
+  } {
+    const tokenData = tokenStorage.getTokenData();
+    return {
+      hasToken: !!tokenData?.accessToken,
+      isValid: tokenStorage.hasValidToken(),
+      expiresIn: tokenStorage.getTimeToExpiry(),
+      expiresAt: tokenData ? new Date(tokenData.expiresAt) : undefined
+    };
+  }
+
+  /**
+   * Manually trigger token refresh
+   */
+  async refreshToken(): Promise<void> {
+    if (!tokenStorage.getRefreshToken()) {
+      throw new ApiError(401, 'NO_REFRESH_TOKEN', 'No refresh token available for manual refresh');
+    }
+    
+    await this.handleTokenRefresh();
+  }
 }
 
 // Create and export a default instance
 export const apiClient = new ApiClient({
   baseUrl: 'http://localhost:8080/api',
   enableLogging: process.env.NODE_ENV === 'development',
+  enableAutoRefresh: true,
 });
 
 // Export default instance as default export
