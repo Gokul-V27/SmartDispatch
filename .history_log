@@ -16,3 +16,4 @@ fix: fix state management bug in React context
 docs: update API endpoint descriptions
 fix: correct date formatting timezone bug
 fix: fix race condition in Redis caching layer
+chore: clean up redundant logs
