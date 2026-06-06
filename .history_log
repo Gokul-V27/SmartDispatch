@@ -10,3 +10,4 @@ fix: improve error handling for database connection
 refactor: extract common constants to shared file
 fix: resolve memory leak in vision processing module
 fix: correct padding on product detail screen
+perf: optimize image loading in admin dashboard
