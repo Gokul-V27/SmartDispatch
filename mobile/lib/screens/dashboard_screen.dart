@@ -115,7 +115,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ...pending.map((order) => _OrderCard(
               order: order,
               onStartPacking: () {
-                Navigator.pushNamed(context, '/ocr-scan', arguments: order);
+                Navigator.pushNamed(context, '/box-selector', arguments: order);
               },
             )),
           ],
