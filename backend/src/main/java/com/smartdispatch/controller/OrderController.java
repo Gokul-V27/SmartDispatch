@@ -22,6 +22,7 @@ public class OrderController {
     private final OrderItemRepository orderItemRepository;
     private final UserRepository userRepository;
     private final ProductRepository productRepository;
+    private final com.smartdispatch.service.NotificationService notificationService;
 
     @GetMapping
     public ResponseEntity<?> getAll(@RequestParam(required = false) String status,
@@ -46,6 +47,26 @@ public class OrderController {
     public ResponseEntity<?> getById(@PathVariable UUID id) {
         return orderRepository.findById(id)
                 .map(order -> ResponseEntity.ok(toOrderMap(order)))
+                .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/{id}/public")
+    public ResponseEntity<?> getPublicById(@PathVariable UUID id) {
+        return orderRepository.findById(id)
+                .map(order -> {
+                    var items = orderItemRepository.findByOrderId(order.getId()).stream().map(item -> Map.of(
+                            "name", item.getProduct().getName(),
+                            "quantity", item.getQuantity()
+                    )).collect(Collectors.toList());
+                    
+                    return ResponseEntity.ok(Map.of(
+                            "orderId", order.getId(),
+                            "orderNumber", order.getOrderNumber(),
+                            "status", order.getStatus().name(),
+                            "items", items,
+                            "estimatedDelivery", order.getCreatedAt().plusDays(3).toString()
+                    ));
+                })
                 .orElse(ResponseEntity.notFound().build());
     }
 
@@ -113,13 +134,28 @@ public class OrderController {
 
     @PutMapping("/{id}/status")
     public ResponseEntity<?> updateStatus(@PathVariable UUID id, @RequestBody Map<String, String> body) {
-        String newStatus = body.get("status");
+        String newStatusStr = body.get("status");
+        Order.OrderStatus newStatus;
+        try {
+            newStatus = Order.OrderStatus.valueOf(newStatusStr);
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Invalid status: " + newStatusStr));
+        }
+
         return orderRepository.findById(id).map(order -> {
-            order.setStatus(Order.OrderStatus.valueOf(newStatus));
-            if ("PACKED".equals(newStatus)) order.setPackedAt(LocalDateTime.now());
-            if ("SHIPPED".equals(newStatus)) order.setShippedAt(LocalDateTime.now());
-            if ("DELIVERED".equals(newStatus)) order.setDeliveredAt(LocalDateTime.now());
+            // Optional: validate transition (e.g. PACKED -> LABEL_PRINTED -> SHIPPED)
+            // if (newStatus.ordinal() < order.getStatus().ordinal()) return error; // strictly forward
+            
+            order.setStatus(newStatus);
+            if (newStatus == Order.OrderStatus.PACKED) order.setPackedAt(LocalDateTime.now());
+            if (newStatus == Order.OrderStatus.SHIPPED) order.setShippedAt(LocalDateTime.now());
+            if (newStatus == Order.OrderStatus.DELIVERED) order.setDeliveredAt(LocalDateTime.now());
+            
             orderRepository.save(order);
+            
+            // Notify client & log event
+            notificationService.notifyClient(order, newStatus);
+            
             return ResponseEntity.ok(toOrderMap(order));
         }).orElse(ResponseEntity.notFound().build());
     }

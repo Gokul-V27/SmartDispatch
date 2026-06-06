@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../core/theme.dart';
 import '../core/constants.dart';
 import '../core/mock_data.dart';
 import '../models/box_models.dart';
+import '../services/packing_provider.dart';
 
 class BoxSelectorScreen extends StatefulWidget {
   const BoxSelectorScreen({super.key});
@@ -305,7 +307,13 @@ class _BoxSelectorScreenState extends State<BoxSelectorScreen> {
                               const SizedBox(width: 8),
                               Expanded(
                                 child: ElevatedButton(
-                                  onPressed: (items.isNotEmpty && dangers == 0) ? () {} : null,
+                                  onPressed: (items.isNotEmpty && dangers == 0) 
+                                      ? () {
+                                          final packProv = Provider.of<PackingProvider>(context, listen: false);
+                                          packProv.startPackingFlow(_selectedBox);
+                                          Navigator.pushReplacementNamed(context, '/box-damage');
+                                        }
+                                      : null,
                                   style: ElevatedButton.styleFrom(
                                     backgroundColor: (items.isNotEmpty && dangers == 0) ? AppColors.teal : AppColors.surface,
                                     foregroundColor: (items.isNotEmpty && dangers == 0) ? Colors.black : AppColors.textMuted,

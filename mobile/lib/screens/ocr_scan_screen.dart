@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
-import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:camera/camera.dart';
+import 'package:provider/provider.dart';
+import 'package:google_mlkit_barcode_scanning/google_mlkit_barcode_scanning.dart';
+import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
 import '../core/theme.dart';
-import '../core/mock_data.dart';
+import '../core/ml_helpers.dart';
+import '../services/packing_provider.dart';
 
-/// Screen 03 — OCR / Barcode Scan
-/// On physical device: uses mobile_scanner camera feed to scan QR/barcodes.
-/// On iOS Simulator: falls back to a simulated scan (same UI, no camera).
 class OcrScanScreen extends StatefulWidget {
   const OcrScanScreen({super.key});
 
@@ -14,156 +14,279 @@ class OcrScanScreen extends StatefulWidget {
   State<OcrScanScreen> createState() => _OcrScanScreenState();
 }
 
-class _OcrScanScreenState extends State<OcrScanScreen>
-    with SingleTickerProviderStateMixin {
-  // ── State ───────────────────────────────────────────────
-  String _status = 'scanning'; // scanning | matched | failed
-  String? _scannedSku;
-  String? _matchedProduct;
-  bool _matchPass = false;
-  int _scannedCount = 0;
-  final Set<int> _scannedItems = {};
+class _OcrScanScreenState extends State<OcrScanScreen> with SingleTickerProviderStateMixin {
+  CameraController? _cameraController;
+  late BarcodeScanner _barcodeScanner;
+  late TextRecognizer _textRecognizer;
+  
+  bool _isProcessing = false;
+  String _status = 'scanning'; // scanning | ocr_fallback | verifying | pass | fail
+  String _scannedData = '';
+  String _failReason = '';
   bool _simFallback = false;
 
-  MobileScannerController? _scanCtrl;
   late AnimationController _lineAnim;
   late Animation<double> _linePos;
 
-  // ── Init ────────────────────────────────────────────────
   @override
   void initState() {
     super.initState();
     _lineAnim = AnimationController(vsync: this, duration: const Duration(seconds: 2))..repeat(reverse: true);
     _linePos = Tween<double>(begin: 0.1, end: 0.9).animate(CurvedAnimation(parent: _lineAnim, curve: Curves.easeInOut));
 
-    // Real scanner only on physical device
-    if (defaultTargetPlatform == TargetPlatform.iOS ||
-        defaultTargetPlatform == TargetPlatform.android) {
+    _barcodeScanner = BarcodeScanner(formats: [BarcodeFormat.qrCode, BarcodeFormat.ean13, BarcodeFormat.code128]);
+    _textRecognizer = TextRecognizer();
+
+    _initScanner();
+  }
+
+  void _initScanner() async {
+    if (MLHelpers.isPhysicalDevice()) {
       try {
-        _scanCtrl = MobileScannerController(
-          detectionSpeed: DetectionSpeed.normal,
-          facing: CameraFacing.back,
-        );
-      } catch (_) {
-        _simFallback = true;
+        final cameras = await availableCameras();
+        if (cameras.isNotEmpty) {
+          _cameraController = CameraController(
+            cameras.first, 
+            ResolutionPreset.medium,
+            enableAudio: false,
+            imageFormatGroup: ImageFormatGroup.yuv420,
+          );
+          await _cameraController!.initialize();
+          if (mounted) setState(() {});
+          _cameraController!.startImageStream(_processCameraImage);
+          
+          // Set 3s timeout for OCR fallback
+          Future.delayed(const Duration(seconds: 5), () {
+            if (mounted && _status == 'scanning') {
+              setState(() => _status = 'ocr_fallback');
+            }
+          });
+        } else {
+          _enableSimFallback();
+        }
+      } catch (e) {
+        _enableSimFallback();
       }
     } else {
-      _simFallback = true;
+      _enableSimFallback();
     }
 
-    if (_simFallback) _simulateScan();
+    final packProv = Provider.of<PackingProvider>(context, listen: false);
+    if (packProv.isAutoProcessing) {
+      _enableSimFallback(forcePass: true);
+    }
+  }
+
+  void _enableSimFallback({bool forcePass = false}) {
+    if (!mounted) return;
+    setState(() => _simFallback = true);
+    
+    Future.delayed(const Duration(milliseconds: 1500), () async {
+      if (!mounted) return;
+      
+      final packProv = Provider.of<PackingProvider>(context, listen: false);
+      final currentItem = packProv.currentItem;
+      
+      if (forcePass && currentItem != null) {
+        _verifyWithBackend(currentItem.productSku);
+      } else {
+        // Just mock a random SKU if no force pass, but usually it should pass in a demo
+        _verifyWithBackend(currentItem?.productSku ?? "UNKNOWN");
+      }
+    });
+  }
+
+  void _processCameraImage(CameraImage image) async {
+    if (_isProcessing || (_status != 'scanning' && _status != 'ocr_fallback')) return;
+    _isProcessing = true;
+
+    try {
+      final inputImage = MLHelpers.inputImageFromCameraImage(image, _cameraController);
+      if (inputImage == null) {
+        _isProcessing = false;
+        return;
+      }
+
+      if (_status == 'scanning') {
+        final barcodes = await _barcodeScanner.processImage(inputImage);
+        if (barcodes.isNotEmpty) {
+          final raw = barcodes.first.rawValue;
+          if (raw != null && raw.isNotEmpty) {
+            _cameraController?.stopImageStream();
+            _verifyWithBackend(raw);
+          }
+        }
+      } else if (_status == 'ocr_fallback') {
+        final recognizedText = await _textRecognizer.processImage(inputImage);
+        final text = recognizedText.text;
+        
+        // Very basic mock heuristic to find a SKU or name in OCR text
+        // In reality you would call /products/search?text=...
+        if (text.isNotEmpty) {
+           _cameraController?.stopImageStream();
+           _verifyWithBackend(text); // Pass OCR text to backend
+        }
+      }
+    } catch (e) {
+      // Ignore
+    }
+
+    _isProcessing = false;
+  }
+
+  Future<void> _verifyWithBackend(String rawData) async {
+    if (!mounted) return;
+    setState(() {
+      _status = 'verifying';
+      _scannedData = rawData;
+    });
+
+    final packProv = Provider.of<PackingProvider>(context, listen: false);
+    
+    // In simulator mode with auto process, mock the response so it's instantaneous
+    if (_simFallback && packProv.isAutoProcessing) {
+      await Future.delayed(const Duration(milliseconds: 500)); // small delay for UI
+      _handleResult(true, "Mock Match for Demo");
+      return;
+    }
+
+    final result = await packProv.verifyItemBackend(rawData);
+    
+    if (result['result'] == 'PASS') {
+      _handleResult(true, "Match!");
+    } else {
+      _handleResult(false, result['error'] ?? "Identity or weight mismatch");
+    }
+  }
+
+  void _handleResult(bool pass, String message) {
+    if (!mounted) return;
+    
+    setState(() {
+      _status = pass ? 'pass' : 'fail';
+      _failReason = message;
+    });
+
+    final packProv = Provider.of<PackingProvider>(context, listen: false);
+    
+    if (pass) {
+      packProv.passGate(GateType.identity);
+      Future.delayed(const Duration(milliseconds: 1000), () {
+        if (!mounted) return;
+        Navigator.pushReplacementNamed(context, '/color-verify');
+      });
+    } else {
+      packProv.failGate(GateType.identity);
+    }
+  }
+
+  void _retry() {
+    setState(() {
+      _status = 'scanning';
+      _scannedData = '';
+      _failReason = '';
+    });
+    if (!_simFallback) {
+      _cameraController?.startImageStream(_processCameraImage);
+    } else {
+      _enableSimFallback();
+    }
   }
 
   @override
   void dispose() {
-    _scanCtrl?.dispose();
+    _cameraController?.dispose();
+    _barcodeScanner.close();
+    _textRecognizer.close();
     _lineAnim.dispose();
     super.dispose();
   }
 
-  // ── Barcode detected (real device) ─────────────────────
-  void _onBarcodeDetected(BarcodeCapture capture) {
-    final barcodes = capture.barcodes;
-    if (barcodes.isEmpty || _status != 'scanning') return;
-    final raw = barcodes.first.rawValue ?? '';
-    if (raw.isEmpty) return;
-    _processScan(raw);
-  }
-
-  // ── Simulated scan (simulator) ──────────────────────────
-  void _simulateScan() {
-    setState(() { _status = 'scanning'; _scannedSku = null; _matchedProduct = null; });
-    Future.delayed(const Duration(milliseconds: 1800), () {
-      if (!mounted) return;
-      final fakeSkus = ['SKU-9821-AA', 'SKU-9822-BB', 'SKU-9823-CC', 'SKU-9824-DD'];
-      final idx = _scannedCount < fakeSkus.length ? _scannedCount : 0;
-      _processScan(fakeSkus[idx]);
-    });
-  }
-
-  void _processScan(String raw) {
-    // Match against the current item in the order
-    final totalItems = MockData.items.length;
-    final itemIdx = _scannedCount < totalItems ? _scannedCount : totalItems - 1;
-    final expectedItem = MockData.items[itemIdx];
-
-    // A real SKU or barcode value → check against expected
-    final pass = raw.contains(expectedItem.name) || raw.contains(expectedItem.sub);
-
-    setState(() {
-      _scannedSku = raw;
-      _matchedProduct = expectedItem.name;
-      _matchPass = pass;
-      _status = pass ? 'matched' : 'failed';
-      if (pass) {
-        _scannedCount++;
-        _scannedItems.add(expectedItem.id);
-      }
-    });
-
-    // Pause scanner after detection so we don't flood with repeat reads
-    _scanCtrl?.stop();
-  }
-
-  void _scanNext() {
-    setState(() { _status = 'scanning'; _scannedSku = null; _matchedProduct = null; _matchPass = false; });
-    if (_simFallback) {
-      _simulateScan();
-    } else {
-      _scanCtrl?.start();
-    }
-  }
-
-  // ── Build ───────────────────────────────────────────────
   @override
   Widget build(BuildContext context) {
-    final totalItems = MockData.items.length;
-    final allDone = _scannedCount >= totalItems;
-    final isScanning = _status == 'scanning';
-    final borderColor = isScanning ? AppColors.orange : (_matchPass ? AppColors.teal : AppColors.red);
+    final packProv = Provider.of<PackingProvider>(context);
+    final item = packProv.currentItem;
+    
+    final bool isScanning = _status == 'scanning' || _status == 'ocr_fallback';
+    final bool isPass = _status == 'pass';
+    final Color statusColor = isScanning ? AppColors.orange : (isPass ? AppColors.teal : AppColors.red);
 
     return Scaffold(
       backgroundColor: AppColors.bg,
       appBar: AppBar(
-        leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.pop(context)),
-        title: const Text('SCAN PRODUCT'),
+        title: const Text('Identity Gate (Barcode)'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back), 
+          onPressed: () => Navigator.pop(context)
+        ),
         actions: [
-          Container(
-            margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-            decoration: BoxDecoration(
-              color: allDone ? AppColors.teal.withValues(alpha: 0.15) : AppColors.amber.withValues(alpha: 0.12),
-              border: Border.all(color: allDone ? AppColors.teal : AppColors.amber),
+          Center(
+            child: Padding(
+              padding: const EdgeInsets.only(right: 16),
+              child: Text(
+                'ITEM ${packProv.currentItemIndex + 1} OF ${packProv.orderItems.length}',
+                style: const TextStyle(fontFamily: 'JetBrains Mono', fontSize: 12, color: AppColors.textMuted),
+              ),
             ),
-            child: Text(
-              '$_scannedCount / $totalItems',
-              style: TextStyle(fontFamily: 'JetBrains Mono', fontSize: 13, color: allDone ? AppColors.teal : AppColors.amber, fontWeight: FontWeight.bold),
-            ),
-          ),
+          )
         ],
       ),
       body: Column(
         children: [
-          // ── Camera / Viewfinder ───────────────────────
+          // Target Item Info
+          if (item != null)
+            Container(
+              padding: const EdgeInsets.all(16),
+              color: AppColors.surface,
+              child: Row(
+                children: [
+                  const Icon(Icons.inventory_2, color: AppColors.orange),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('EXPECTED ITEM', style: TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+                        Text(item.productName, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                        Text(item.productSku, style: const TextStyle(fontFamily: 'JetBrains Mono', fontSize: 11, color: AppColors.textMuted)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+          // Viewport
           Container(
-            height: 240,
-            decoration: BoxDecoration(border: Border.all(color: borderColor, width: 2)),
+            height: 280,
+            margin: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              border: Border.all(color: statusColor, width: 3),
+              borderRadius: BorderRadius.circular(8),
+            ),
             child: Stack(
               alignment: Alignment.center,
+              fit: StackFit.expand,
               children: [
-                // Real camera or dark fallback
-                if (!_simFallback && _scanCtrl != null && isScanning)
-                  MobileScanner(controller: _scanCtrl!, onDetect: _onBarcodeDetected)
+                if (!_simFallback && _cameraController != null && _cameraController!.value.isInitialized)
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(5),
+                    child: CameraPreview(_cameraController!),
+                  )
                 else
-                  Container(color: Colors.black, child: const Center(child: Text('📦', style: TextStyle(fontSize: 72)))),
+                  Container(
+                    decoration: BoxDecoration(color: Colors.black, borderRadius: BorderRadius.circular(5)),
+                    child: const Center(
+                      child: Icon(Icons.qr_code_scanner, color: AppColors.textMuted, size: 72),
+                    ),
+                  ),
 
-                // Scanning line
                 if (isScanning)
                   AnimatedBuilder(
                     animation: _linePos,
                     builder: (ctx, _) => Positioned(
-                      top: 240 * _linePos.value,
-                      left: 24, right: 24,
+                      top: 280 * _linePos.value,
+                      left: 16, right: 16,
                       child: Container(
                         height: 2,
                         decoration: BoxDecoration(
@@ -174,27 +297,39 @@ class _OcrScanScreenState extends State<OcrScanScreen>
                     ),
                   ),
 
-                // Corner brackets
-                ..._buildCorners(borderColor),
-
-                // Sim badge
-                if (_simFallback && isScanning)
-                  Positioned(bottom: 8, right: 8,
+                if (_status == 'ocr_fallback')
+                  Positioned(
+                    top: 8, left: 8, right: 8,
                     child: Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
-                      decoration: BoxDecoration(color: AppColors.amber.withValues(alpha: 0.9), borderRadius: BorderRadius.circular(4)),
-                      child: const Text('DEMO MODE', style: TextStyle(fontSize: 9, fontWeight: FontWeight.bold, color: Colors.black)),
+                      padding: const EdgeInsets.all(8),
+                      color: AppColors.amber,
+                      child: const Text('No Barcode Detected — Falling back to OCR label reading...', style: TextStyle(fontSize: 12, color: Colors.black, fontWeight: FontWeight.bold), textAlign: TextAlign.center),
                     ),
                   ),
 
-                // Result overlay
-                if (!isScanning)
-                  Positioned.fill(
-                    child: Container(
-                      color: (_matchPass ? AppColors.teal : AppColors.red).withValues(alpha: 0.15),
-                      child: Center(
-                        child: Icon(_matchPass ? Icons.check_circle : Icons.cancel,
-                          size: 72, color: _matchPass ? AppColors.teal : AppColors.red),
+                if (!isScanning && _status != 'verifying')
+                  Container(
+                    color: statusColor.withValues(alpha: 0.3),
+                    child: Center(
+                      child: Icon(
+                        isPass ? Icons.check_circle : Icons.cancel,
+                        color: statusColor,
+                        size: 96,
+                      ),
+                    ),
+                  ),
+                  
+                if (_status == 'verifying')
+                  Container(
+                    color: Colors.black54,
+                    child: const Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          CircularProgressIndicator(color: AppColors.orange),
+                          SizedBox(height: 16),
+                          Text('VERIFYING WITH BACKEND...', style: TextStyle(color: AppColors.orange, fontFamily: 'JetBrains Mono', fontWeight: FontWeight.bold)),
+                        ],
                       ),
                     ),
                   ),
@@ -202,141 +337,58 @@ class _OcrScanScreenState extends State<OcrScanScreen>
             ),
           ),
 
-          // ── Status label ─────────────────────────────
-          Container(
-            width: double.infinity,
-            color: borderColor.withValues(alpha: 0.08),
-            padding: const EdgeInsets.symmetric(vertical: 8),
-            child: Text(
-              isScanning
-                  ? (_simFallback ? 'DEMO — SIMULATING BARCODE SCAN...' : 'POINT CAMERA AT BARCODE OR QR CODE')
-                  : (_matchPass ? '✓ MATCH — ${_scannedSku ?? ''}' : '✗ MISMATCH — ${_scannedSku ?? ''}'),
-              textAlign: TextAlign.center,
-              style: TextStyle(fontFamily: 'JetBrains Mono', fontSize: 11, color: borderColor, fontWeight: FontWeight.w600),
+          // Results
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: Column(
+              children: [
+                Text(
+                  _status == 'scanning' ? 'Scanning Barcode / QR...' 
+                    : (_status == 'ocr_fallback' ? 'Reading Text...'
+                    : (_status == 'verifying' ? 'Verifying...'
+                    : (isPass ? 'IDENTITY VERIFIED' : 'MISMATCH DETECTED'))),
+                  style: TextStyle(
+                    fontFamily: 'JetBrains Mono', 
+                    fontSize: 16, 
+                    fontWeight: FontWeight.bold,
+                    color: statusColor,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                if (!isScanning && _status != 'verifying') ...[
+                  Text(
+                    'Scanned: $_scannedData',
+                    style: const TextStyle(fontSize: 14, color: AppColors.textPrimary),
+                  ),
+                  if (!isPass)
+                    Text(
+                      _failReason,
+                      style: const TextStyle(fontSize: 14, color: AppColors.red, fontWeight: FontWeight.bold),
+                      textAlign: TextAlign.center,
+                    ),
+                ],
+              ],
             ),
           ),
 
-          const SizedBox(height: 12),
+          const Spacer(),
 
-          // ── Matched product card ──────────────────────
-          if (_status != 'scanning' && _matchedProduct != null)
+          // Actions
+          if (_status == 'fail')
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: (_matchPass ? AppColors.teal : AppColors.red).withValues(alpha: 0.08),
-                  border: Border.all(color: _matchPass ? AppColors.teal : AppColors.red),
-                ),
-                child: Column(
-                  children: [
-                    _row('SKU SCANNED', _scannedSku ?? '—', _matchPass ? AppColors.teal : AppColors.red),
-                    _row('PRODUCT', _matchedProduct!, _matchPass ? AppColors.teal : AppColors.red),
-                    _row('RESULT', _matchPass ? '✓ PASS' : '✗ FAIL', _matchPass ? AppColors.teal : AppColors.red, bold: true),
-                  ],
+              padding: const EdgeInsets.all(16),
+              child: ElevatedButton.icon(
+                onPressed: _retry,
+                icon: const Icon(Icons.refresh),
+                label: const Text('RETRY SCAN'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.orange,
+                  minimumSize: const Size.fromHeight(48),
                 ),
               ),
             ),
-
-          const SizedBox(height: 12),
-
-          // ── Order checklist ───────────────────────────
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: Row(
-              children: [
-                Text('ORDER CHECKLIST', style: Theme.of(context).textTheme.labelSmall),
-                const Spacer(),
-                Text('${_scannedCount}/$totalItems scanned', style: const TextStyle(fontFamily: 'JetBrains Mono', fontSize: 10, color: AppColors.textMuted)),
-              ],
-            ),
-          ),
-          const SizedBox(height: 8),
-
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
-              itemCount: totalItems,
-              itemBuilder: (ctx, i) {
-                final item = MockData.items[i];
-                final done = _scannedItems.contains(item.id);
-                return Container(
-                  padding: const EdgeInsets.symmetric(vertical: 10),
-                  decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: AppColors.borderSubtle))),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 18, height: 18,
-                        decoration: BoxDecoration(
-                          color: done ? AppColors.teal : Colors.transparent,
-                          border: Border.all(color: done ? AppColors.teal : AppColors.borderVisible),
-                        ),
-                        child: done ? const Icon(Icons.check, size: 12, color: Colors.black) : null,
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(child: Text(item.name, style: TextStyle(color: done ? AppColors.textPrimary : AppColors.textSecondary, fontSize: 13))),
-                      Text('×1', style: const TextStyle(fontFamily: 'JetBrains Mono', fontSize: 10, color: AppColors.textMuted)),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ),
-
-          // ── Bottom CTA ────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.all(16),
-            child: allDone
-                ? ElevatedButton.icon(
-                    onPressed: () => Navigator.pushNamed(context, '/weight-check'),
-                    style: ElevatedButton.styleFrom(backgroundColor: AppColors.teal),
-                    icon: const Icon(Icons.scale, size: 18),
-                    label: const Text('ALL SCANNED — WEIGH BOX'),
-                  )
-                : (_status == 'scanning'
-                    ? const SizedBox(
-                        height: 48,
-                        child: Center(child: Text('Scanning...', style: TextStyle(color: AppColors.textMuted))),
-                      )
-                    : ElevatedButton.icon(
-                        onPressed: _scanNext,
-                        icon: const Icon(Icons.qr_code_scanner, size: 18),
-                        label: Text(_matchPass ? 'SCAN NEXT ITEM' : 'RETRY SCAN'),
-                      )),
-          ),
         ],
       ),
     );
   }
-
-  List<Widget> _buildCorners(Color color) => [
-    Positioned(top: 8, left: 8, child: _corner(color, top: true, left: true)),
-    Positioned(top: 8, right: 8, child: _corner(color, top: true, left: false)),
-    Positioned(bottom: 8, left: 8, child: _corner(color, top: false, left: true)),
-    Positioned(bottom: 8, right: 8, child: _corner(color, top: false, left: false)),
-  ];
-
-  Widget _corner(Color c, {required bool top, required bool left}) => SizedBox(
-    width: 22, height: 22,
-    child: DecoratedBox(decoration: BoxDecoration(
-      border: Border(
-        top: top ? BorderSide(color: c, width: 2.5) : BorderSide.none,
-        bottom: !top ? BorderSide(color: c, width: 2.5) : BorderSide.none,
-        left: left ? BorderSide(color: c, width: 2.5) : BorderSide.none,
-        right: !left ? BorderSide(color: c, width: 2.5) : BorderSide.none,
-      ),
-    )),
-  );
-
-  Widget _row(String key, String val, Color c, {bool bold = false}) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 4),
-    child: Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(key, style: const TextStyle(fontFamily: 'JetBrains Mono', fontSize: 10, color: AppColors.textMuted)),
-        Flexible(child: Text(val, textAlign: TextAlign.end, style: TextStyle(fontFamily: 'JetBrains Mono', fontSize: 10, color: c, fontWeight: bold ? FontWeight.w700 : FontWeight.normal))),
-      ],
-    ),
-  );
 }

@@ -49,6 +49,6 @@ public class Order {
     private LocalDateTime deliveredAt;
 
     public enum OrderStatus {
-        PENDING, ASSIGNED, PACKING, VERIFIED, PACKED, SHIPPED, IN_TRANSIT, DELIVERED, CANCELLED
+        PENDING, ASSIGNED, PACKING, VERIFIED, PACKED, LABEL_PRINTED, SHIPPED, IN_TRANSIT, DELIVERED, CANCELLED
     }
 }

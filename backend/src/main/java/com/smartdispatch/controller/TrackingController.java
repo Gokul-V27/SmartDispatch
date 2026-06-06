@@ -57,9 +57,20 @@ public class TrackingController {
             timeline.add(Map.of("step", "Packing", "status", "pending"));
         }
 
+        if (order.getStatus().ordinal() >= Order.OrderStatus.LABEL_PRINTED.ordinal()) {
+            timeline.add(Map.of("step", "Label Printed", "status", "done",
+                    "detail", "Ready for dispatch"));
+        } else if (order.getStatus() == Order.OrderStatus.PACKED) {
+            timeline.add(Map.of("step", "Label Printed", "status", "current"));
+        } else {
+            timeline.add(Map.of("step", "Label Printed", "status", "pending"));
+        }
+
         if (order.getStatus().ordinal() >= Order.OrderStatus.SHIPPED.ordinal()) {
             timeline.add(Map.of("step", "Shipped", "status", "done",
                     "time", order.getShippedAt() != null ? order.getShippedAt().toString() : ""));
+        } else if (order.getStatus() == Order.OrderStatus.LABEL_PRINTED) {
+            timeline.add(Map.of("step", "Shipped", "status", "current"));
         } else {
             timeline.add(Map.of("step", "Shipped", "status", "pending"));
         }
@@ -67,6 +78,8 @@ public class TrackingController {
         if (order.getStatus() == Order.OrderStatus.DELIVERED) {
             timeline.add(Map.of("step", "Delivered", "status", "done",
                     "time", order.getDeliveredAt() != null ? order.getDeliveredAt().toString() : ""));
+        } else if (order.getStatus() == Order.OrderStatus.IN_TRANSIT || order.getStatus() == Order.OrderStatus.SHIPPED) {
+            timeline.add(Map.of("step", "Delivered", "status", "current"));
         } else {
             timeline.add(Map.of("step", "Delivered", "status", "pending"));
         }
@@ -77,6 +90,10 @@ public class TrackingController {
                 "quantity", i.getQuantity(),
                 "verified", i.isOcrVerified() && i.isVisionVerified() && i.isWeightVerified()
         )).collect(Collectors.toList());
+
+        // Note: VerificationLogRepository was unused but injected. 
+        // I'll leave it as is or we can inject OrderEventRepository instead if we want to show events here.
+        // Actually, let's just return what we have since we updated the timeline correctly.
 
         return ResponseEntity.ok(Map.of(
                 "orderNumber", order.getOrderNumber(),

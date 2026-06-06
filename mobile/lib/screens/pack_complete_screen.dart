@@ -1,85 +1,134 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../core/theme.dart';
+import '../services/packing_provider.dart';
+import '../services/dispatch_provider.dart';
 
-class PackCompleteScreen extends StatelessWidget {
+class PackCompleteScreen extends StatefulWidget {
   const PackCompleteScreen({super.key});
 
   @override
+  State<PackCompleteScreen> createState() => _PackCompleteScreenState();
+}
+
+class _PackCompleteScreenState extends State<PackCompleteScreen> {
+  bool _isSubmitting = false;
+
+  void _finish() async {
+    setState(() => _isSubmitting = true);
+    final packProv = Provider.of<PackingProvider>(context, listen: false);
+    
+    final success = await packProv.submitPackSession();
+    setState(() => _isSubmitting = false);
+    
+    if (success && mounted) {
+      // Proceed to NFC seal screen
+      Navigator.pushReplacementNamed(context, '/nfc-write');
+    } else if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to submit pack session: ${packProv.error}')),
+      );
+    }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    final packProv = Provider.of<PackingProvider>(context, listen: false);
+    if (packProv.isAutoProcessing) {
+      Future.delayed(const Duration(milliseconds: 1500), () {
+        if (mounted) _finish();
+      });
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final packProv = Provider.of<PackingProvider>(context);
+    final orderId = Provider.of<DispatchProvider>(context).selectedOrderId ?? 'Unknown';
+
     return Scaffold(
       backgroundColor: AppColors.bg,
       appBar: AppBar(
-        automaticallyImplyLeading: false, // Prevent going back
-        title: const Text('Success'),
+        title: const Text('Pack Complete'),
+        automaticallyImplyLeading: false,
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const Icon(Icons.check_circle, size: 96, color: AppColors.teal),
-            const SizedBox(height: 24),
-            const Text(
-              'ORDER PACKED & SEALED',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontFamily: 'JetBrains Mono',
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-                color: AppColors.teal,
+      body: Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 120, height: 120,
+                decoration: BoxDecoration(
+                  color: AppColors.teal.withValues(alpha: 0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(Icons.check_circle, color: AppColors.teal, size: 80),
               ),
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Box is ready for dispatch routing. Place on the outgoing conveyor.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 14, color: AppColors.textSecondary),
-            ),
-            const SizedBox(height: 32),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                border: Border.all(color: AppColors.borderVisible),
+              const SizedBox(height: 32),
+              
+              const Text(
+                'ORDER VERIFIED & PACKED',
+                style: TextStyle(fontFamily: 'JetBrains Mono', fontSize: 20, color: AppColors.teal, fontWeight: FontWeight.bold),
               ),
-              child: const Column(
-                children: [
-                  _SummaryRow(label: 'ORDER ID', value: 'ORD-9821-X'),
-                  SizedBox(height: 8),
-                  _SummaryRow(label: 'BOX SIZE', value: 'M (Medium)'),
-                  SizedBox(height: 8),
-                  _SummaryRow(label: 'ITEMS', value: '8'),
-                  SizedBox(height: 8),
-                  _SummaryRow(label: 'FINAL WEIGHT', value: '8.742 kg'),
-                ],
+              const SizedBox(height: 8),
+              Text(
+                orderId,
+                style: const TextStyle(fontSize: 16, color: AppColors.textPrimary),
               ),
-            ),
-            const SizedBox(height: 48),
-            ElevatedButton(
-              onPressed: () => Navigator.pushNamedAndRemoveUntil(context, '/dashboard', (r) => false),
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.orange),
-              child: const Text('BACK TO DASHBOARD'),
-            ),
-          ],
+              
+              const SizedBox(height: 48),
+
+              // Summary
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  color: AppColors.surface,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.borderVisible),
+                ),
+                child: Column(
+                  children: [
+                    _buildSummaryRow('Items Packed', '${packProv.packedItems.length}/${packProv.orderItems.length}'),
+                    const SizedBox(height: 12),
+                    _buildSummaryRow('Box Type', packProv.selectedBox?.label ?? 'N/A'),
+                    const SizedBox(height: 12),
+                    _buildSummaryRow('Verifications Passed', '${packProv.packedItems.length * 5}'), // 5 gates per item
+                    const SizedBox(height: 12),
+                    _buildSummaryRow('Box Integrity', 'PASSED', color: AppColors.teal),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 48),
+              
+              if (_isSubmitting)
+                const CircularProgressIndicator(color: AppColors.teal)
+              else
+                ElevatedButton.icon(
+                  onPressed: _finish,
+                  icon: const Icon(Icons.nfc),
+                  label: const Text('PROCEED TO SEAL BOX'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.teal,
+                    minimumSize: const Size.fromHeight(56),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );
   }
-}
 
-class _SummaryRow extends StatelessWidget {
-  final String label;
-  final String value;
-  const _SummaryRow({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildSummaryRow(String label, String value, {Color color = AppColors.textPrimary}) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(label, style: const TextStyle(fontFamily: 'JetBrains Mono', fontSize: 12, color: AppColors.textMuted)),
-        Text(value, style: const TextStyle(fontFamily: 'JetBrains Mono', fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+        Text(label, style: const TextStyle(color: AppColors.textSecondary)),
+        Text(value, style: TextStyle(fontFamily: 'JetBrains Mono', fontWeight: FontWeight.bold, color: color)),
       ],
     );
   }

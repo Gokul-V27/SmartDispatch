@@ -114,7 +114,7 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({
                         src={p.photos[0]}
                         alt={p.name}
                         referrerPolicy="no-referrer"
-                        className="w-24 h-24 rounded object-cover border border-[rgba(255,255,255,0.08)]"
+                        className="w-32 h-32 sm:w-40 sm:h-40 rounded-lg object-cover border-2 border-[rgba(255,255,255,0.12)] shadow-xl hover:scale-105 transition-transform duration-300"
                       />
                     </td>
                     <td className="p-4">
@@ -133,9 +133,21 @@ export const ProductsPage: React.FC<ProductsPageProps> = ({
                       <span className="text-[9px] text-gray-500 font-mono block">±{p.weightToleranceGrams}g limits</span>
                     </td>
                     <td className="p-4">
-                      <div className="flex items-center gap-2">
-                        <span className="w-4 h-4 rounded-full border border-gray-600 shadow-sm inline-block shrink-0" style={{ backgroundColor: p.colorHex }} />
-                        <span className="text-gray-300 font-medium">{p.colorName}</span>
+                      <div 
+                        className="flex items-center gap-2.5 px-3 py-1.5 rounded-lg border w-max shadow-sm"
+                        style={{ 
+                          backgroundColor: `${p.colorHex}1A`, // 10% opacity
+                          borderColor: `${p.colorHex}40` // 25% opacity
+                        }}
+                      >
+                        <span 
+                          className="w-5 h-5 rounded-full border-2 border-white/20 inline-block shrink-0" 
+                          style={{ 
+                            backgroundColor: p.colorHex, 
+                            boxShadow: `0 0 12px ${p.colorHex}80` 
+                          }} 
+                        />
+                        <span className="text-white font-bold font-mono tracking-wide drop-shadow-md">{p.colorName}</span>
                       </div>
                     </td>
                     <td className="p-4 text-right font-mono text-gray-300 font-bold">

@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-export type OrderStatus = 'PENDING' | 'ASSIGNED' | 'PACKING' | 'VERIFIED' | 'PACKED' | 'SHIPPED' | 'DELIVERED';
+export type OrderStatus = 'PENDING' | 'ASSIGNED' | 'PACKING' | 'VERIFIED' | 'PACKED' | 'LABEL_PRINTED' | 'SHIPPED' | 'IN_TRANSIT' | 'DELIVERED';
 
 export interface Product {
   id: string;
@@ -89,4 +89,26 @@ export interface Alert {
   isResolved: boolean;
   createdAt: string;
   resolvedAt?: string;
+}
+
+export interface NfcItem {
+  sku: string;
+  name: string;
+  qty: number;
+  color: string;
+  dims: { l: number; w: number; h: number; };
+  verified: boolean;
+}
+
+export interface NfcPayload {
+  orderId: string;
+  sessionId: string;
+  packerId: string;
+  boxId: string;
+  packedAt: string;
+  clientName: string;
+  clientPhone: string;
+  clientEmail: string;
+  address: { line1: string; city: string; pincode: string; state: string; };
+  items: NfcItem[];
 }
