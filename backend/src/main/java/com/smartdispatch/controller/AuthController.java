@@ -44,7 +44,7 @@ public class AuthController {
 
         // Generate worker ID for packers
         if (role == User.Role.PACKER || role == User.Role.DELIVERY) {
-            user.setWorkerId("WK-" + String.format("%05d", (int)(Math.random() * 99999)));
+            user.setWorkerId("WK-" + String.format("%05d", (int) (Math.random() * 99999)));
             if (body.containsKey("pin")) {
                 user.setPinHash(passwordEncoder.encode(body.get("pin")));
             }
@@ -62,9 +62,7 @@ public class AuthController {
                         "name", user.getName(),
                         "email", user.getEmail(),
                         "role", user.getRole(),
-                        "workerId", user.getWorkerId() != null ? user.getWorkerId() : ""
-                )
-        ));
+                        "workerId", user.getWorkerId() != null ? user.getWorkerId() : "")));
     }
 
     @PostMapping("/login")
@@ -96,9 +94,7 @@ public class AuthController {
                         "name", user.getName(),
                         "email", user.getEmail(),
                         "role", user.getRole(),
-                        "workerId", user.getWorkerId() != null ? user.getWorkerId() : ""
-                )
-        ));
+                        "workerId", user.getWorkerId() != null ? user.getWorkerId() : "")));
     }
 
     @PostMapping("/pin-login")
@@ -121,8 +117,7 @@ public class AuthController {
 
         return ResponseEntity.ok(Map.of("token", token, "user", Map.of(
                 "id", user.getId(), "name", user.getName(),
-                "role", user.getRole(), "workerId", user.getWorkerId()
-        )));
+                "role", user.getRole(), "workerId", user.getWorkerId())));
     }
 
     @GetMapping("/me")
@@ -132,7 +127,7 @@ public class AuthController {
         var user = userRepository.findById(UUID.fromString(userId));
         return user.map(u -> ResponseEntity.ok(Map.of(
                 "id", u.getId(), "name", u.getName(), "email", u.getEmail(),
-                "role", u.getRole(), "workerId", u.getWorkerId() != null ? u.getWorkerId() : ""
-        ))).orElse(ResponseEntity.notFound().build());
+                "role", u.getRole(), "workerId", u.getWorkerId() != null ? u.getWorkerId() : "")))
+                .orElse(ResponseEntity.notFound().build());
     }
 }

@@ -1,0 +1,6 @@
+{
+  "name": "SmartDispatch",
+  "description": "SmartDispatch warehouse package verification, Print Center, and delivery system with simulated OCR and NFC support.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

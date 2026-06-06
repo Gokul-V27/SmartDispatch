@@ -1,0 +1,109 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, monospace;
+}
+
+body {
+  background-color: #0A0F1A;
+  color: #F1F5F9;
+  font-family: var(--font-sans);
+  overflow-x: hidden;
+}
+
+/* HIGH-PERFORMANCE PHYSICAL A6 THERMAL LABEL PRINT ISOLATION */
+@media print {
+  /* Hide standard headers, sidebars, interactive screens, modals & backgrounds */
+  body, html, #root, #root > * {
+    background: #ffffff !important;
+    color: #000000 !important;
+    margin: 0 !important;
+    padding: 0 !important;
+    width: 100% !important;
+    height: 100% !important;
+    visibility: hidden !important;
+  }
+
+  /* Exclude fixed sidebars, background emulators and screen-only features */
+  .fixed, .absolute, button, aside, main, header, footer, [role="dialog"], .backdrop-blur-md {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* Isolate only our A6 Printable Card */
+  .printable-label-wrapper {
+    visibility: visible !important;
+    display: flex !important;
+    flex-direction: column !important;
+    position: absolute !important;
+    top: 0 !important;
+    left: 0 !important;
+    width: 100mm !important; /* Standard A6 Portrait */
+    height: 148mm !important; /* Standard A6 Portrait */
+    padding: 8mm !important;
+    margin: 0 !important;
+    border: none !important;
+    box-shadow: none !important;
+    background: #ffffff !important;
+    color: #000000 !important;
+    page-break-inside: avoid !important;
+    font-family: Arial, sans-serif !important;
+  }
+
+  /* High contrast colors and crisp lines for thermal printheads */
+  .printable-label-wrapper * {
+    visibility: visible !important;
+    color: #000000 !important;
+    border-color: #000000 !important;
+    background: transparent !important;
+    box-shadow: none !important;
+  }
+
+  /* Force hidden high-risk item data in actual print outs */
+  .printable-label-wrapper .print\:hidden {
+    display: none !important;
+    visibility: hidden !important;
+  }
+
+  /* Force display secure warning mass values during print out */
+  .printable-label-wrapper .print\:block {
+    display: block !important;
+    visibility: visible !important;
+  }
+}
+
+/* Custom scrollbars */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0A0F1A;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #1F2937;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #4B5563;
+}
+
+/* Pulsating ambient keyframes */
+@keyframes pulseGlow {
+  0%, 100% {
+    opacity: 0.4;
+  }
+  50% {
+    opacity: 0.8;
+  }
+}
+
+.ambient-glow {
+  animation: pulseGlow 4s infinite ease-in-out;
+}
+
