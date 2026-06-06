@@ -17,3 +17,4 @@ docs: update API endpoint descriptions
 fix: correct date formatting timezone bug
 fix: fix race condition in Redis caching layer
 chore: clean up redundant logs
+fix: final touchups and minor bug fixes
