@@ -129,7 +129,7 @@ export class ApiClient {
   }> = [];
 
   constructor(config: ApiClientConfig = {}) {
-    this.baseUrl = config.baseUrl || 'http://localhost:8080/api';
+    this.baseUrl = config.baseUrl || '/api';
     this.timeout = config.timeout || 10000; // 10 seconds default
     this.enableLogging = config.enableLogging || false;
     this.enableAutoRefresh = config.enableAutoRefresh ?? true;
@@ -436,15 +436,20 @@ export class ApiClient {
         // No content response (like 204 No Content)
         responseData = null;
       } else {
-        responseData = await response.json();
+        const rawText = await response.text();
+        try {
+          responseData = rawText ? JSON.parse(rawText) : null;
+        } catch (e) {
+          throw new Error(`JSON parse failed. Raw text: <<<${rawText.substring(0, 200)}>>>`);
+        }
       }
-    } catch (parseError) {
+    } catch (parseError: any) {
       // If JSON parsing fails, create error response
       responseData = {
         success: false,
         error: {
           code: 'INVALID_RESPONSE',
-          message: 'Invalid JSON response from server',
+          message: parseError?.message || 'Invalid JSON response from server',
           details: parseError,
         },
         timestamp: new Date().toISOString(),
@@ -466,10 +471,15 @@ export class ApiClient {
       );
     }
 
-    // Return standardized response format
-    return responseData || {
+    // Check if response is already in the standardized format
+    if (responseData && typeof responseData === 'object' && 'success' in responseData && ('data' in responseData || 'error' in responseData)) {
+      return responseData;
+    }
+
+    // Return standardized response format wrapping the raw data
+    return {
       success: true,
-      data: null,
+      data: responseData !== undefined ? responseData : null,
       timestamp: new Date().toISOString(),
     };
   }
@@ -849,7 +859,7 @@ export class ApiClient {
 
 // Create and export a default instance
 export const apiClient = new ApiClient({
-  baseUrl: 'http://localhost:8080/api',
+  baseUrl: '/api',
   enableLogging: process.env.NODE_ENV === 'development',
   enableAutoRefresh: true,
 });

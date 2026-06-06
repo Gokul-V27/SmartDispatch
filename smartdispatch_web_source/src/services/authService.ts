@@ -28,7 +28,16 @@ export class AuthService {
       });
 
       if (response.success && response.data) {
-        const { user, accessToken, refreshToken, expiresIn } = response.data;
+        console.log("LOGIN RESPONSE DATA:", response.data);
+        
+        // The backend returns { token: "...", user: {...} }
+        const data = response.data as any;
+        const user = data.user;
+        const accessToken = data.token || data.accessToken;
+        const refreshToken = data.refreshToken;
+        const expiresIn = data.expiresIn;
+        
+        console.log("EXTRACTED TOKEN:", accessToken);
         
         // Store tokens using the API client
         apiClient.setAuthToken(accessToken, refreshToken, expiresIn);
@@ -53,7 +62,11 @@ export class AuthService {
       });
 
       if (response.success && response.data) {
-        const { user, accessToken, refreshToken, expiresIn } = response.data;
+        const data = response.data as any;
+        const user = data.user;
+        const accessToken = data.token || data.accessToken;
+        const refreshToken = data.refreshToken;
+        const expiresIn = data.expiresIn;
         
         // Store tokens
         apiClient.setAuthToken(accessToken, refreshToken, expiresIn);

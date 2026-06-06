@@ -42,17 +42,56 @@ import {
   Smartphone
 } from 'lucide-react';
 import { Order, Product, Worker, Alert, OrderStatus } from './types';
-import { INITIAL_PRODUCTS, INITIAL_ORDERS, INITIAL_WORKERS, INITIAL_ALERTS } from './mockData';
+import { BackendApi } from './services/backendApi';
+import { authService } from './services/authService';
 
 export default function App() {
   // Navigation State
   const [activeTab, setActiveTab] = useState<'dashboard' | 'products' | 'orders' | 'print' | 'workers' | 'alerts' | 'emulator' | 'analytics' | 'history'>('dashboard');
   
+  // App Mode & Auth State
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [loginEmail, setLoginEmail] = useState('admin@smartdispatch.com');
+  const [loginPassword, setLoginPassword] = useState('admin123');
+
   // Data State managed in memory for interactive prototype
-  const [products, setProducts] = useState<Product[]>(INITIAL_PRODUCTS);
-  const [orders, setOrders] = useState<Order[]>(INITIAL_ORDERS);
-  const [workers, setWorkers] = useState<Worker[]>(INITIAL_WORKERS);
-  const [alerts, setAlerts] = useState<Alert[]>(INITIAL_ALERTS);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [workers, setWorkers] = useState<Worker[]>([]);
+  const [alerts, setAlerts] = useState<Alert[]>([]);
+
+  // Load Data Effect
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchDataFromBackend();
+    }
+  }, [isAuthenticated]);
+
+  const fetchDataFromBackend = async () => {
+    try {
+      const [fetchedProducts, fetchedOrders, fetchedWorkers] = await Promise.all([
+        BackendApi.fetchProducts(),
+        BackendApi.fetchOrders(),
+        BackendApi.fetchWorkers()
+      ]);
+      setProducts(fetchedProducts);
+      setOrders(fetchedOrders);
+      setWorkers(fetchedWorkers);
+    } catch (e) {
+      addToast('Failed to fetch data from backend. Check if backend is running.', 'error');
+    }
+  };
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      await authService.login({ email: loginEmail, password: loginPassword });
+      setIsAuthenticated(true);
+      addToast('Logged in successfully', 'success');
+    } catch (e: any) {
+      addToast(e.message || 'Login failed', 'error');
+    }
+  };
 
   // Time & Live Sync Display
   const [currentTime, setCurrentTime] = useState<string>('2026-06-06 05:48:55');
@@ -138,9 +177,7 @@ export default function App() {
   const [printOrientation, setPrintOrientation] = useState<'portrait' | 'landscape'>('portrait');
   const [batteryLevel, setBatteryLevel] = useState<number>(92);
   const [isQrScannerActive, setIsQrScannerActive] = useState<boolean>(false);
-  const [previouslyPackedOrderIds, setPreviouslyPackedOrderIds] = useState<string[]>(() =>
-    INITIAL_ORDERS.filter(o => o.status === 'PACKED' || o.nfcSealedAt).map(o => o.id)
-  );
+  const [previouslyPackedOrderIds, setPreviouslyPackedOrderIds] = useState<string[]>([]);
 
   // Computed Orders List based on search and status filter
   const filteredOrders = orders.filter(o => {
@@ -222,12 +259,15 @@ export default function App() {
   };
 
   // Sync animation
-  const triggerSync = () => {
+  const triggerSync = async () => {
     setIsSyncing(true);
+    if (isAuthenticated) {
+      await fetchDataFromBackend();
+    }
     setTimeout(() => {
       setIsSyncing(false);
       addToast('Real-time warehouse registry synced', 'success');
-    }, 8000);
+    }, 1000);
   };
 
   // Keep GMT time updated
@@ -264,32 +304,21 @@ export default function App() {
   }, [selectedPrintOrderId, orders]);
 
   // Handle adding a product
-  const handleCreateProduct = (e: FormEvent) => {
+  const handleCreateProduct = async (e: FormEvent) => {
     e.preventDefault();
     if (!newProduct.name || !newProduct.sku || !newProduct.brand) {
       addToast('Please fill out all required fields', 'error');
       return;
     }
-    const created: Product = {
-      id: `prod-${Date.now()}`,
-      name: newProduct.name || '',
-      brand: newProduct.brand || '',
-      modelNumber: newProduct.modelNumber || 'N/A',
-      sku: newProduct.sku || '',
-      category: newProduct.category || 'Electronics',
-      colorName: newProduct.colorName || 'Silver',
-      colorHex: newProduct.colorHex || '#C0C0C0',
-      weightKg: Number(newProduct.weightKg) || 1.0,
-      weightToleranceGrams: Number(newProduct.weightToleranceGrams) || 100,
-      stockQty: Number(newProduct.stockQty) || 10,
-      priceRs: Number(newProduct.priceRs) || 1000,
-      description: newProduct.description || '',
-      photos: newProduct.photos || ['https://images.unsplash.com/photo-1541807084-5c52b6b3adef?w=600&auto=format&fit=crop&q=60']
-    };
 
-    setProducts(prev => [created, ...prev]);
-    setShowAddProductModal(false);
-    addToast(`Product "${created.name}" created in catalog`, 'success');
+    try {
+      const created = await BackendApi.createProduct(newProduct);
+      setProducts(prev => [created, ...prev]);
+      setShowAddProductModal(false);
+      addToast(`Product "${newProduct.name}" created in catalog`, 'success');
+    } catch (e: any) {
+      addToast(e.message || 'Failed to create product', 'error');
+    }
   };
 
   // Handle resolving an alert
@@ -301,33 +330,43 @@ export default function App() {
   };
 
   // Handle assigning packer
-  const handleAssignPacker = (orderId: string, workerId: string) => {
+  const handleAssignPacker = async (orderId: string, workerId: string) => {
     const worker = workers.find(w => w.id === workerId);
-    setOrders(prev =>
-      prev.map(o => (o.id === orderId ? {
-        ...o,
-        packerWorkerId: workerId,
-        packerName: worker?.name,
-        status: o.status === 'PENDING' ? 'ASSIGNED' : o.status
-      } : o))
-    );
-    addToast(`Order has been assigned to ${worker?.name || 'Packer'}.`, 'success');
+    try {
+      await BackendApi.assignPacker(orderId, workerId);
+      setOrders(prev =>
+        prev.map(o => (o.id === orderId ? {
+          ...o,
+          packerWorkerId: workerId,
+          packerName: worker?.name,
+          status: o.status === 'PENDING' ? 'ASSIGNED' : o.status
+        } : o))
+      );
+      addToast(`Order has been assigned to ${worker?.name || 'Packer'}.`, 'success');
+    } catch (e: any) {
+      addToast(e.message || 'Failed to assign packer', 'error');
+    }
   };
 
   // Handle bulk assigning a list of orders to a single packer
-  const handleBulkAssignPacker = (orderIds: string[], workerId: string) => {
+  const handleBulkAssignPacker = async (orderIds: string[], workerId: string) => {
     const worker = workers.find(w => w.id === workerId);
     if (!worker) return;
-    setOrders(prev =>
-      prev.map(o => (orderIds.includes(o.id) ? {
-        ...o,
-        packerWorkerId: workerId,
-        packerName: worker.name,
-        status: o.status === 'PENDING' ? 'ASSIGNED' : o.status
-      } : o))
-    );
-    addToast(`Successfully assigned ${orderIds.length} orders to ${worker.name}.`, 'success');
-    setBulkSelectedOrderIds([]);
+    try {
+      await Promise.all(orderIds.map(id => BackendApi.assignPacker(id, workerId)));
+      setOrders(prev =>
+        prev.map(o => (orderIds.includes(o.id) ? {
+          ...o,
+          packerWorkerId: workerId,
+          packerName: worker.name,
+          status: o.status === 'PENDING' ? 'ASSIGNED' : o.status
+        } : o))
+      );
+      addToast(`Successfully assigned ${orderIds.length} orders to ${worker.name}.`, 'success');
+      setBulkSelectedOrderIds([]);
+    } catch (e: any) {
+      addToast('Failed to assign some orders', 'error');
+    }
   };
 
   // Generate individual standard thermal shipping label PDF in A6 format
@@ -842,37 +881,45 @@ export default function App() {
   }, [orders, selectedHistoryCustomer]);
 
   // Handle advancing order status
-  const handleAdvanceOrderStatus = (orderId: string) => {
-    setOrders(prev =>
-      prev.map(o => {
-        if (o.id !== orderId) return o;
-        let nextStatus: OrderStatus = o.status;
-        const current = o.status;
-        if (current === 'PENDING') nextStatus = 'ASSIGNED';
-        else if (current === 'ASSIGNED') nextStatus = 'PACKING';
-        else if (current === 'PACKING') {
-          // Auto-verify all items as successfully packed in simulation
-          const updatedItems = o.items.map(item => ({
-            ...item,
-            ocrVerified: true,
-            visionVerified: true,
-            weightVerified: true,
-            verifiedAt: currentTime
-          }));
-          nextStatus = 'VERIFIED';
-          addToast('All items verified: OCR match, Vision Color, and weight values match standard specifications.', 'success');
-          return { ...o, items: updatedItems, status: nextStatus };
-        }
-        else if (current === 'VERIFIED') {
-          nextStatus = 'PACKED';
-          addToast('NFC sealed recorded: Physical package UID bound to tracking.', 'success');
-        }
-        else if (current === 'PACKED') nextStatus = 'SHIPPED';
-        else if (current === 'SHIPPED') nextStatus = 'DELIVERED';
+  const handleAdvanceOrderStatus = async (orderId: string) => {
+    const order = orders.find(o => o.id === orderId);
+    if (!order) return;
+    
+    let nextStatus: OrderStatus = order.status;
+    const current = order.status;
+    if (current === 'PENDING') nextStatus = 'ASSIGNED';
+    else if (current === 'ASSIGNED') nextStatus = 'PACKING';
+    else if (current === 'PACKING') nextStatus = 'VERIFIED';
+    else if (current === 'VERIFIED') nextStatus = 'PACKED';
+    else if (current === 'PACKED') nextStatus = 'SHIPPED';
+    else if (current === 'SHIPPED') nextStatus = 'DELIVERED';
 
-        return { ...o, status: nextStatus };
-      })
-    );
+    try {
+      await BackendApi.updateOrderStatus(orderId, nextStatus);
+      setOrders(prev =>
+        prev.map(o => {
+          if (o.id !== orderId) return o;
+          
+          if (nextStatus === 'VERIFIED') {
+            const updatedItems = o.items.map(item => ({
+              ...item,
+              ocrVerified: true,
+              visionVerified: true,
+              weightVerified: true,
+              verifiedAt: currentTime
+            }));
+            addToast('All items verified: OCR match, Vision Color, and weight values match standard specifications.', 'success');
+            return { ...o, items: updatedItems, status: nextStatus };
+          }
+          if (nextStatus === 'PACKED') {
+            addToast('NFC sealed recorded: Physical package UID bound to tracking.', 'success');
+          }
+          return { ...o, status: nextStatus };
+        })
+      );
+    } catch (e: any) {
+      addToast('Failed to advance order status', 'error');
+    }
   };
 
   // Handle printed mark
@@ -884,7 +931,7 @@ export default function App() {
   };
 
   // Handle NFC Tap simulation
-  const handleNfcSealTapSimulation = (orderId: string) => {
+  const handleNfcSealTapSimulation = async (orderId: string) => {
     if (activeNfcHandshaking) return;
     
     // Trigger electromagnetic coupling state
@@ -894,31 +941,43 @@ export default function App() {
       statusText: 'Coupling electromagnetic 13.56 MHz Radio Frequency Field...'
     });
 
-    setTimeout(() => {
-      setOrders(prev =>
-        prev.map(o => {
-          if (o.id === orderId) {
-            const updatedItems = o.items.map(item => ({
-              ...item,
-              ocrVerified: true,
-              visionVerified: true,
-              weightVerified: true,
-              verifiedAt: currentTime
-            }));
-            return {
-              ...o,
-              items: updatedItems,
-              status: 'PACKED' as OrderStatus,
-              nfcSealedAt: currentTime
-            };
-          }
-          return o;
-        })
-      );
-      playBuzzerSound();
-      addToast('Pulsed physical NFC seal emulation complete! Box package sealed permanently.', 'success');
+    try {
+      // Find a packer worker or use the logged in user
+      const packer = workers.find(w => w.role === 'PACKER');
+      if (packer) {
+        await BackendApi.sealNfc(`NFC-TAG-${Date.now()}`, packer.id);
+      } else {
+        await BackendApi.updateOrderStatus(orderId, 'PACKED');
+      }
+      setTimeout(() => {
+        setOrders(prev =>
+          prev.map(o => {
+            if (o.id === orderId) {
+              const updatedItems = o.items.map(item => ({
+                ...item,
+                ocrVerified: true,
+                visionVerified: true,
+                weightVerified: true,
+                verifiedAt: currentTime
+              }));
+              return {
+                ...o,
+                items: updatedItems,
+                status: 'PACKED' as OrderStatus,
+                nfcSealedAt: currentTime
+              };
+            }
+            return o;
+          })
+        );
+        playBuzzerSound();
+        addToast('Pulsed physical NFC seal emulation complete! Box package sealed permanently.', 'success');
+        setActiveNfcHandshaking(null);
+      }, 450); // 450ms includes 300ms handshake and 150ms settling phase
+    } catch (e: any) {
+      addToast('Failed to seal NFC tag on backend', 'error');
       setActiveNfcHandshaking(null);
-    }, 450); // 450ms includes 300ms handshake and 150ms settling phase
+    }
   };
 
   // Save modified label contents from edit mode
@@ -1061,6 +1120,95 @@ export default function App() {
       setIsAutoPiloting(false);
     }
   };
+
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-[#0A0F1A] text-[#F1F5F9] font-sans flex flex-col justify-center py-12 sm:px-6 lg:px-8">
+        {/* Toast Notification Container */}
+        <div className="fixed top-6 right-6 z-50 flex flex-col gap-3 max-w-md w-full pointer-events-none">
+          <AnimatePresence>
+            {notifications.map(n => (
+              <motion.div
+                key={n.id}
+                initial={{ opacity: 0, x: 50, scale: 0.95 }}
+                animate={{ opacity: 1, x: 0, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95, transition: { duration: 0.2 } }}
+                className={`p-4 rounded-xl shadow-2xl border backdrop-blur-md flex items-center gap-3 ${
+                  n.type === 'success' ? 'bg-[#0A0F1A]/80 border-[#3F6212]/50 text-[#84CC16]' :
+                  n.type === 'error' ? 'bg-[#0A0F1A]/80 border-[#991B1B]/50 text-[#F87171]' :
+                  'bg-[#0A0F1A]/80 border-[#1E3A8A]/50 text-[#60A5FA]'
+                }`}
+              >
+                {n.type === 'success' && <CheckCircle2 size={20} className="text-[#84CC16]" />}
+                {n.type === 'error' && <XCircle size={20} className="text-[#F87171]" />}
+                {n.type === 'info' && <Info size={20} className="text-[#60A5FA]" />}
+                <p className="text-sm font-medium">{n.text}</p>
+              </motion.div>
+            ))}
+          </AnimatePresence>
+        </div>
+
+        <div className="sm:mx-auto sm:w-full sm:max-w-md">
+          <div className="flex justify-center mb-6">
+            <div className="h-16 w-16 bg-gradient-to-br from-[#F97316] to-[#EA580C] rounded-2xl flex items-center justify-center shadow-lg shadow-[#F97316]/20">
+              <Package size={32} className="text-white" />
+            </div>
+          </div>
+          <h2 className="mt-6 text-center text-3xl font-extrabold text-white">
+            SmartDispatch Hub
+          </h2>
+          <p className="mt-2 text-center text-sm text-gray-400">
+            Sign in to your administration account
+          </p>
+        </div>
+
+        <div className="mt-8 sm:mx-auto sm:w-full sm:max-w-md">
+          <div className="bg-[#111827] py-8 px-4 shadow-2xl border border-gray-800 sm:rounded-xl sm:px-10">
+            <form className="space-y-6" onSubmit={handleLogin}>
+              <div>
+                <label className="block text-sm font-medium text-gray-300">
+                  Email address
+                </label>
+                <div className="mt-1">
+                  <input
+                    type="email"
+                    required
+                    value={loginEmail}
+                    onChange={(e) => setLoginEmail(e.target.value)}
+                    className="appearance-none block w-full px-3 py-2 border border-gray-700 rounded-lg shadow-sm bg-gray-800/50 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:border-transparent sm:text-sm"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium text-gray-300">
+                  Password
+                </label>
+                <div className="mt-1">
+                  <input
+                    type="password"
+                    required
+                    value={loginPassword}
+                    onChange={(e) => setLoginPassword(e.target.value)}
+                    className="appearance-none block w-full px-3 py-2 border border-gray-700 rounded-lg shadow-sm bg-gray-800/50 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-[#F97316] focus:border-transparent sm:text-sm"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <button
+                  type="submit"
+                  className="w-full flex justify-center py-2.5 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-[#F97316] hover:bg-[#EA580C] focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-[#F97316] focus:ring-offset-gray-900 transition-colors"
+                >
+                  Sign in
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[#0A0F1A] text-[#F1F5F9] font-sans flex flex-col md:flex-row relative selection:bg-[#F97316] selection:text-white">
@@ -1701,7 +1849,7 @@ export default function App() {
                                 src={p.photos[0]}
                                 alt={p.name}
                                 referrerPolicy="no-referrer"
-                                className="w-12 h-12 rounded object-cover border border-[rgba(255,255,255,0.08)]"
+                                className="w-24 h-24 rounded object-cover border border-[rgba(255,255,255,0.08)]"
                               />
                             </td>
                             <td className="p-4">

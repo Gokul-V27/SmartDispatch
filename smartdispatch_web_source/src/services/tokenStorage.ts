@@ -231,6 +231,9 @@ class TokenStorageService {
    */
   parseTokenExpiry(token: string): number {
     try {
+      if (!token) {
+        return Date.now() + (60 * 60 * 1000);
+      }
       const payload = token.split('.')[1];
       const decoded = JSON.parse(atob(payload));
       return decoded.exp * 1000; // Convert to milliseconds

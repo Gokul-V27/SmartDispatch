@@ -8,6 +8,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
@@ -129,5 +130,26 @@ public class AuthController {
                 "id", u.getId(), "name", u.getName(), "email", u.getEmail(),
                 "role", u.getRole(), "workerId", u.getWorkerId() != null ? u.getWorkerId() : "")))
                 .orElse(ResponseEntity.notFound().build());
+    }
+
+    @GetMapping("/users")
+    public ResponseEntity<?> getUsers(@RequestParam(required = false) String role) {
+        List<User> users;
+        if (role != null && !role.isEmpty()) {
+            users = userRepository.findAll().stream()
+                .filter(u -> u.getRole().name().equalsIgnoreCase(role))
+                .toList();
+        } else {
+            users = userRepository.findAll();
+        }
+        return ResponseEntity.ok(users.stream().map(u -> Map.of(
+            "id", u.getId(),
+            "name", u.getName(),
+            "email", u.getEmail(),
+            "phone", u.getPhone() != null ? u.getPhone() : "",
+            "role", u.getRole(),
+            "workerId", u.getWorkerId() != null ? u.getWorkerId() : "",
+            "isActive", u.isActive()
+        )).toList());
     }
 }
