@@ -31,6 +31,24 @@ class AuthService extends ChangeNotifier {
   }
 
   Future<bool> login(String email, String password) async {
+    // Mock customer login
+    if (email == 'customer@smartdispatch.com' && password == 'shop123') {
+      _token = 'mock_customer_jwt';
+      _userId = 'CUST-001';
+      _userName = 'Priya Sharma';
+      _role = 'customer';
+      _workerId = '';
+
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setString('auth_token', _token!);
+      await prefs.setString('user_id', _userId!);
+      await prefs.setString('user_name', _userName!);
+      await prefs.setString('user_role', _role!);
+      await prefs.setString('worker_id', _workerId!);
+      notifyListeners();
+      return true;
+    }
+
     final api = ApiService();
     final data = await api.login(email, password);
     if (data != null && data.containsKey('token')) {
