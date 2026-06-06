@@ -6,3 +6,4 @@ docs: add comments to order processing logic
 fix: resolve API CORS issue in local dev
 fix: fix typo in validation error message
 style: format code according to lint rules
+fix: improve error handling for database connection
