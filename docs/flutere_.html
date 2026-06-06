@@ -1,0 +1,1613 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SmartDispatch — Flutter Worker App Specification</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#04080f;
+  --surf:#080e1c;
+  --surf2:#0c1425;
+  --surf3:#101b30;
+  --border:#152035;
+  --border2:#1c2d47;
+  --or:#f97316;--or-d:rgba(249,115,22,.12);--or-g:rgba(249,115,22,.06);
+  --bl:#38bdf8;--bl-d:rgba(56,189,248,.12);--bl-g:rgba(56,189,248,.06);
+  --gn:#22d3a0;--gn-d:rgba(34,211,160,.10);--gn-g:rgba(34,211,160,.05);
+  --yw:#f59e0b;--yw-d:rgba(245,158,11,.10);
+  --rd:#ef4444;--rd-d:rgba(239,68,68,.10);
+  --pu:#a78bfa;--pu-d:rgba(167,139,250,.10);
+  --pk:#f472b6;--pk-d:rgba(244,114,182,.10);
+  --tx:#cdd8e8;--mt:#4a6380;--dim:#2a3f58;
+  --mono:'JetBrains Mono',monospace;
+  --sans:'Syne',sans-serif;
+}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--tx);font-family:var(--sans);padding:0;margin:0;font-size:13px;line-height:1.6}
+
+/* ── NOISE TEXTURE ── */
+body::before{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");pointer-events:none;z-index:0;opacity:.4}
+.wrap{position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:40px 24px 80px}
+
+/* ── HEADER ── */
+.hdr{position:relative;padding:56px 40px 48px;background:linear-gradient(135deg,var(--surf) 0%,var(--surf2) 100%);border:1px solid var(--border2);margin-bottom:40px;overflow:hidden}
+.hdr::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--or),var(--bl),var(--gn),transparent)}
+.hdr::after{content:'';position:absolute;bottom:-80px;right:-80px;width:300px;height:300px;background:radial-gradient(circle,rgba(249,115,22,.06) 0%,transparent 70%);pointer-events:none}
+.hdr-eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:4px;color:var(--or);text-transform:uppercase;margin-bottom:16px;display:flex;align-items:center;gap:10px}
+.hdr-eyebrow::before{content:'';width:24px;height:1px;background:var(--or)}
+.hdr-title{font-family:var(--sans);font-size:52px;font-weight:800;color:#fff;letter-spacing:-2px;line-height:1;margin-bottom:10px}
+.hdr-title .acc{color:var(--or)}
+.hdr-subtitle{font-size:16px;color:var(--mt);max-width:640px;line-height:1.7;margin-bottom:28px;font-weight:400}
+.hdr-tags{display:flex;flex-wrap:wrap;gap:8px}
+.htag{font-family:var(--mono);font-size:10px;padding:4px 12px;border:1px solid var(--border2);color:var(--mt);letter-spacing:1px}
+.htag.hi{border-color:var(--or);color:var(--or);background:var(--or-g)}
+
+/* ── SECTION HEADER ── */
+.sec-hdr{display:flex;align-items:center;gap:16px;margin:48px 0 24px}
+.sec-num{font-family:var(--mono);font-size:11px;color:var(--or);letter-spacing:2px;background:var(--or-g);border:1px solid var(--or);padding:3px 10px;flex-shrink:0}
+.sec-title{font-family:var(--sans);font-size:22px;font-weight:700;color:#fff;letter-spacing:-0.5px}
+.sec-line{flex:1;height:1px;background:linear-gradient(90deg,var(--border2),transparent)}
+
+/* ── SCREEN CARD ── */
+.screen-card{background:var(--surf);border:1px solid var(--border2);margin-bottom:20px;overflow:hidden;position:relative}
+.screen-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%}
+.screen-card.s-pack::before{background:var(--or)}
+.screen-card.s-rfid::before{background:var(--bl)}
+.screen-card.s-vis::before{background:var(--gn)}
+.screen-card.s-track::before{background:var(--pu)}
+.screen-card.s-return::before{background:var(--pk)}
+.screen-card.s-weight::before{background:var(--yw)}
+
+.sc-head{display:flex;align-items:center;gap:14px;padding:18px 24px;border-bottom:1px solid var(--border);background:var(--surf2)}
+.sc-num{font-family:var(--mono);font-size:10px;color:var(--mt);min-width:60px}
+.sc-ico{font-size:20px}
+.sc-name{font-family:var(--sans);font-weight:700;font-size:16px;color:#fff}
+.sc-route{font-family:var(--mono);font-size:10px;color:var(--mt);margin-left:auto;padding:2px 10px;border:1px solid var(--border2)}
+.sc-desc{font-size:12px;color:var(--mt);padding:14px 24px 0;line-height:1.6;border-bottom:1px solid var(--border);padding-bottom:14px}
+
+.sc-body{display:grid;grid-template-columns:1fr 1fr;gap:0}
+.sc-body.full{grid-template-columns:1fr}
+.sc-body.three{grid-template-columns:1fr 1fr 1fr}
+
+/* ── MOCKUP COLUMN ── */
+.mockup-col{padding:24px;border-right:1px solid var(--border)}
+.mockup-label{font-family:var(--mono);font-size:9px;letter-spacing:3px;color:var(--mt);text-transform:uppercase;margin-bottom:14px}
+
+/* phone shell */
+.phone{width:200px;margin:0 auto;background:#000;border:2px solid #1a2a40;border-radius:28px;overflow:hidden;position:relative;box-shadow:0 0 40px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.04)}
+.phone::before{content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);width:60px;height:10px;background:#000;border-radius:0 0 10px 10px;z-index:10}
+.ph-status{display:flex;justify-content:space-between;align-items:center;padding:14px 14px 6px;font-size:8px;font-family:var(--mono);color:#4a6380}
+.ph-screen{background:var(--surf);min-height:340px;padding:10px 10px 12px}
+
+/* UI elements */
+.ph-appbar{background:var(--surf3);padding:8px 10px;display:flex;align-items:center;gap:6px;margin-bottom:8px}
+.ph-appbar-title{font-size:11px;font-weight:700;color:#fff;font-family:var(--sans)}
+.ph-appbar-ico{font-size:12px}
+.ph-badge{display:inline-block;font-family:var(--mono);font-size:7px;padding:1px 6px;border-radius:2px}
+.ph-badge.gn{background:var(--gn-d);color:var(--gn);border:1px solid rgba(34,211,160,.3)}
+.ph-badge.rd{background:var(--rd-d);color:var(--rd);border:1px solid rgba(239,68,68,.3)}
+.ph-badge.or{background:var(--or-d);color:var(--or);border:1px solid rgba(249,115,22,.3)}
+.ph-badge.bl{background:var(--bl-d);color:var(--bl);border:1px solid rgba(56,189,248,.3)}
+.ph-badge.yw{background:var(--yw-d);color:var(--yw);border:1px solid rgba(245,158,11,.3)}
+
+.ph-card{background:var(--surf3);border:1px solid var(--border2);padding:8px 9px;margin-bottom:5px;border-radius:2px}
+.ph-card-title{font-size:9px;font-weight:700;color:#fff;font-family:var(--mono);margin-bottom:3px}
+.ph-card-sub{font-size:7.5px;color:var(--mt);line-height:1.4}
+.ph-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.ph-label{font-size:7.5px;color:var(--mt);font-family:var(--mono)}
+.ph-val{font-size:8px;color:var(--tx);font-family:var(--mono)}
+
+.ph-btn{background:var(--or);color:#fff;font-size:9px;font-weight:700;font-family:var(--mono);padding:7px 10px;text-align:center;border-radius:2px;margin-top:6px;letter-spacing:1px}
+.ph-btn.sec{background:var(--surf3);border:1px solid var(--border2);color:var(--tx)}
+.ph-btn.gn{background:var(--gn);color:#000}
+.ph-btn.bl{background:var(--bl);color:#000}
+.ph-btn.rd{background:var(--rd)}
+
+.ph-input{background:var(--surf);border:1px solid var(--border2);padding:6px 8px;margin-bottom:5px;font-size:8px;font-family:var(--mono);color:var(--tx)}
+.ph-input-label{font-size:7px;color:var(--mt);font-family:var(--mono);margin-bottom:2px;letter-spacing:1px;text-transform:uppercase}
+
+.ph-progress{background:var(--border);height:4px;border-radius:2px;overflow:hidden;margin:4px 0}
+.ph-progress-bar{height:100%;border-radius:2px;background:var(--or)}
+
+.ph-check{display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--border)}
+.ph-check:last-child{border-bottom:none}
+.ph-check-box{width:10px;height:10px;border:1px solid;border-radius:1px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:7px}
+.ph-check-box.done{background:var(--gn);border-color:var(--gn);color:#000}
+.ph-check-box.pend{border-color:var(--mt)}
+.ph-check-box.fail{background:var(--rd);border-color:var(--rd);color:#fff}
+.ph-check-text{font-size:8px;color:var(--tx)}
+.ph-check-qty{font-size:7px;color:var(--mt);margin-left:auto;font-family:var(--mono)}
+
+.ph-divider{height:1px;background:var(--border);margin:6px 0}
+.ph-section{font-size:7px;letter-spacing:2px;text-transform:uppercase;color:var(--mt);font-family:var(--mono);margin-bottom:5px;margin-top:8px}
+
+.ph-stat{background:var(--surf3);padding:7px;text-align:center;border:1px solid var(--border)}
+.ph-stat-val{font-size:16px;font-weight:700;font-family:var(--mono);color:#fff}
+.ph-stat-lbl{font-size:6.5px;color:var(--mt);font-family:var(--mono);letter-spacing:1px;text-transform:uppercase}
+
+.ph-alert{background:var(--rd-d);border:1px solid rgba(239,68,68,.3);padding:6px 8px;border-radius:2px;margin-bottom:5px}
+.ph-alert-txt{font-size:7.5px;color:var(--rd);font-family:var(--mono)}
+
+.ph-scan-area{background:var(--surf3);border:2px dashed var(--border2);padding:16px 8px;text-align:center;margin:6px 0}
+.ph-scan-ico{font-size:22px;margin-bottom:4px}
+.ph-scan-txt{font-size:7.5px;color:var(--mt);font-family:var(--mono)}
+
+.ph-circle{width:60px;height:60px;border-radius:50%;margin:8px auto;display:flex;flex-direction:column;align-items:center;justify-content:center;border:2px solid}
+.ph-circle.pass{border-color:var(--gn);background:var(--gn-d);color:var(--gn)}
+.ph-circle.fail{border-color:var(--rd);background:var(--rd-d);color:var(--rd)}
+.ph-circle.pend{border-color:var(--yw);background:var(--yw-d);color:var(--yw)}
+.ph-circle-val{font-size:14px;font-weight:700;font-family:var(--mono)}
+.ph-circle-sub{font-size:6px;font-family:var(--mono);letter-spacing:1px;text-transform:uppercase}
+
+.ph-rfid{background:var(--bl-d);border:1px solid rgba(56,189,248,.3);padding:8px;margin:4px 0}
+.ph-rfid-row{display:flex;justify-content:space-between;font-size:7.5px;font-family:var(--mono);padding:2px 0;border-bottom:1px solid rgba(56,189,248,.1)}
+.ph-rfid-row:last-child{border-bottom:none}
+.ph-rfid-key{color:var(--mt)}
+.ph-rfid-val{color:var(--bl)}
+
+/* ── SPEC COLUMN ── */
+.spec-col{padding:24px}
+.spec-title{font-family:var(--mono);font-size:10px;letter-spacing:2px;color:var(--or);text-transform:uppercase;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.spec-title::after{content:'';flex:1;height:1px;background:var(--border2)}
+
+/* field table */
+.ftable{width:100%;border-collapse:collapse;margin-bottom:18px}
+.ftable th{font-family:var(--mono);font-size:9px;color:var(--mt);text-transform:uppercase;letter-spacing:1px;padding:6px 10px;background:var(--surf2);border:1px solid var(--border);text-align:left}
+.ftable td{font-size:11px;padding:7px 10px;border:1px solid var(--border);vertical-align:top;line-height:1.4}
+.ftable tr:nth-child(even) td{background:rgba(255,255,255,.01)}
+.fn{font-family:var(--mono);font-size:11px;color:var(--bl)}
+.ft{font-family:var(--mono);font-size:10px;color:var(--mt)}
+.fdesc{color:var(--tx);font-size:11px}
+.fv{font-family:var(--mono);font-size:10px;color:var(--yw)}
+.req{font-family:var(--mono);font-size:9px}
+.req.y{color:var(--rd)}
+.req.n{color:var(--mt)}
+.req.c{color:var(--yw)}
+
+/* flow steps */
+.flow-steps{display:flex;flex-direction:column;gap:0;margin-bottom:16px}
+.fls{display:flex;gap:12px;align-items:flex-start;position:relative;padding-bottom:12px}
+.fls:not(:last-child)::after{content:'';position:absolute;left:13px;top:28px;bottom:0;width:1px;background:var(--border2)}
+.fls-dot{width:26px;height:26px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;font-family:var(--mono);font-weight:700;border:1px solid}
+.fls-dot.or{background:var(--or-d);border-color:var(--or);color:var(--or)}
+.fls-dot.bl{background:var(--bl-d);border-color:var(--bl);color:var(--bl)}
+.fls-dot.gn{background:var(--gn-d);border-color:var(--gn);color:var(--gn)}
+.fls-dot.rd{background:var(--rd-d);border-color:var(--rd);color:var(--rd)}
+.fls-dot.yw{background:var(--yw-d);border-color:var(--yw);color:var(--yw)}
+.fls-dot.pu{background:var(--pu-d);border-color:var(--pu);color:var(--pu)}
+.fls-content{}
+.fls-title{font-family:var(--mono);font-size:11px;font-weight:600;color:#fff;margin-bottom:3px}
+.fls-desc{font-size:11px;color:var(--mt);line-height:1.5}
+
+/* rules */
+.rules{display:flex;flex-direction:column;gap:6px;margin-bottom:16px}
+.rule{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;background:var(--surf2);border-left:2px solid}
+.rule.or{border-color:var(--or)}
+.rule.bl{border-color:var(--bl)}
+.rule.gn{border-color:var(--gn)}
+.rule.rd{border-color:var(--rd)}
+.rule.yw{border-color:var(--yw)}
+.rule.pu{border-color:var(--pu)}
+.rule-ico{font-size:14px;flex-shrink:0}
+.rule-txt{font-size:11px;color:var(--tx);line-height:1.5}
+.rule-txt strong{font-family:var(--mono);font-size:10px}
+
+/* api box */
+.api-box{background:var(--surf2);border:1px solid var(--border2);padding:14px;font-family:var(--mono);font-size:11px;margin-bottom:12px}
+.api-method{display:inline-block;font-size:9px;padding:2px 8px;border-radius:2px;margin-right:8px;font-weight:700}
+.api-method.post{background:rgba(34,211,160,.2);color:var(--gn)}
+.api-method.get{background:rgba(56,189,248,.2);color:var(--bl)}
+.api-method.put{background:rgba(245,158,11,.2);color:var(--yw)}
+.api-method.del{background:rgba(239,68,68,.2);color:var(--rd)}
+.api-path{color:#fff}
+.api-desc{font-size:10px;color:var(--mt);margin-top:5px;line-height:1.4}
+.api-body{background:var(--bg);padding:8px;margin-top:6px;font-size:10px;color:var(--gn);white-space:pre;overflow-x:auto}
+
+/* state diagram */
+.states{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.state{padding:6px 12px;border:1px solid var(--border2);font-family:var(--mono);font-size:10px;position:relative}
+.state.active{border-color:var(--gn);color:var(--gn);background:var(--gn-g)}
+.state.warn{border-color:var(--yw);color:var(--yw);background:var(--yw-d)}
+.state.err{border-color:var(--rd);color:var(--rd);background:var(--rd-d)}
+.state.info{border-color:var(--bl);color:var(--bl);background:var(--bl-g)}
+.state.def{color:var(--mt)}
+
+/* logic box */
+.logic{background:var(--bg);border:1px solid var(--border);padding:12px 14px;font-family:var(--mono);font-size:10px;color:var(--gn);line-height:1.8;margin-bottom:12px;white-space:pre-wrap}
+.logic .comment{color:var(--mt)}
+.logic .key{color:var(--bl)}
+.logic .val{color:var(--or)}
+.logic .str{color:var(--yw)}
+
+/* ── OVERVIEW GRID ── */
+.ov-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--border);border:1px solid var(--border);margin-bottom:32px;overflow:hidden}
+.ov-cell{background:var(--surf);padding:14px 12px;text-align:center}
+.ov-cell-num{font-family:var(--mono);font-size:22px;font-weight:700;color:var(--or);margin-bottom:4px}
+.ov-cell-lbl{font-family:var(--mono);font-size:9px;color:var(--mt);letter-spacing:1px;text-transform:uppercase;line-height:1.4}
+
+/* ── ARCH STRIP ── */
+.arch-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:0;background:var(--border);border:1px solid var(--border2);margin-bottom:32px;overflow:hidden}
+.arch-layer{background:var(--surf);padding:16px;text-align:center;position:relative}
+.arch-layer:not(:last-child)::after{content:'▶';position:absolute;right:-10px;top:50%;transform:translateY(-50%);color:var(--or);font-size:11px;background:var(--bg);padding:2px;z-index:2}
+.arch-icon{font-size:24px;margin-bottom:8px}
+.arch-name{font-family:var(--mono);font-size:10px;color:var(--or);font-weight:700;margin-bottom:6px;letter-spacing:1px}
+.arch-items{font-size:10px;color:var(--mt);line-height:1.6}
+
+/* ── PERMISSION TABLE ── */
+.perm-row{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--border)}
+.perm-row:last-child{border-bottom:none}
+.perm-ico{font-size:14px;width:24px;flex-shrink:0}
+.perm-name{font-family:var(--mono);font-size:11px;color:#fff;min-width:140px}
+.perm-reason{font-size:11px;color:var(--mt);flex:1}
+.perm-req{font-family:var(--mono);font-size:9px;padding:2px 8px}
+
+/* ── DATA FLOW DIAGRAM ── */
+.dflow{display:flex;align-items:center;gap:0;overflow-x:auto;padding:16px 0;margin-bottom:12px}
+.dnode{background:var(--surf2);border:1px solid var(--border2);padding:10px 14px;text-align:center;flex-shrink:0;min-width:90px}
+.dnode-ico{font-size:16px;margin-bottom:4px}
+.dnode-name{font-family:var(--mono);font-size:9px;color:var(--bl);font-weight:700}
+.dnode-desc{font-size:9px;color:var(--mt);line-height:1.3;margin-top:2px}
+.darr{flex-shrink:0;padding:0 4px;color:var(--or);font-size:12px;font-family:var(--mono)}
+.darr-top{display:flex;flex-direction:column;align-items:center;font-size:8px;color:var(--mt);font-family:var(--mono);gap:2px}
+.darr-ico{font-size:12px;color:var(--or)}
+
+/* ── INLINE CODE ── */
+code{font-family:var(--mono);font-size:10px;color:var(--bl);background:rgba(56,189,248,.08);padding:1px 5px}
+
+/* ── TAG ── */
+.tag{font-family:var(--mono);font-size:9px;padding:2px 7px;border-radius:2px;display:inline-block;margin:1px}
+.tag.or{background:var(--or-d);color:var(--or);border:1px solid rgba(249,115,22,.25)}
+.tag.bl{background:var(--bl-d);color:var(--bl);border:1px solid rgba(56,189,248,.25)}
+.tag.gn{background:var(--gn-d);color:var(--gn);border:1px solid rgba(34,211,160,.25)}
+.tag.yw{background:var(--yw-d);color:var(--yw);border:1px solid rgba(245,158,11,.25)}
+.tag.rd{background:var(--rd-d);color:var(--rd);border:1px solid rgba(239,68,68,.25)}
+
+/* ── FOOTER ── */
+.foot{text-align:center;padding:32px;font-family:var(--mono);font-size:10px;color:var(--mt);border-top:1px solid var(--border)}
+
+/* ── NOTICE ── */
+.notice{background:var(--or-g);border:1px solid rgba(249,115,22,.3);padding:12px 16px;font-size:12px;color:var(--tx);display:flex;gap:10px;align-items:flex-start;margin-bottom:16px}
+.notice-ico{font-size:16px;flex-shrink:0}
+.notice-txt{line-height:1.6}
+
+/* Responsive */
+@media(max-width:760px){
+  .sc-body{grid-template-columns:1fr!important}
+  .mockup-col{border-right:none;border-bottom:1px solid var(--border)}
+  .ov-grid{grid-template-columns:repeat(3,1fr)}
+  .arch-strip{grid-template-columns:repeat(2,1fr)}
+  .hdr-title{font-size:34px}
+  .three-col{grid-template-columns:1fr!important}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- ══════════════════════════════════════════ HEADER ══ -->
+<div class="hdr">
+  <div class="hdr-eyebrow">SmartDispatch · Worker App · v2.0</div>
+  <div class="hdr-title">FLUTTER <span class="acc">WORKER</span> APP</div>
+  <div class="hdr-subtitle">Complete screen-by-screen specification — product scan & OCR verification, RFID write & sector lock, weight check, AI vision confirm, hub tracking, truck tracking, and box return lifecycle.</div>
+  <div class="hdr-tags">
+    <span class="htag hi">Flutter 3.x</span>
+    <span class="htag hi">Dart</span>
+    <span class="htag">google_ml_kit (OCR)</span>
+    <span class="htag">NFC (flutter_nfc_kit)</span>
+    <span class="htag">NDEF / ISO 15693</span>
+    <span class="htag">AES-128</span>
+    <span class="htag">Supabase Realtime</span>
+    <span class="htag">MQTT</span>
+    <span class="htag">Mapbox</span>
+    <span class="htag">Drift + SQLite</span>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════ OVERVIEW COUNTS ══ -->
+<div class="ov-grid">
+  <div class="ov-cell"><div class="ov-cell-num">9</div><div class="ov-cell-lbl">App Screens</div></div>
+  <div class="ov-cell"><div class="ov-cell-num">3</div><div class="ov-cell-lbl">Verify Methods</div></div>
+  <div class="ov-cell"><div class="ov-cell-num">4</div><div class="ov-cell-lbl">NFC Sectors</div></div>
+  <div class="ov-cell"><div class="ov-cell-num">2</div><div class="ov-cell-lbl">Tracking Stages</div></div>
+  <div class="ov-cell"><div class="ov-cell-num">500+</div><div class="ov-cell-lbl">Box Reuse Cycles</div></div>
+</div>
+
+<!-- ══════════════════════════════════════════ ARCH FLOW ══ -->
+<div class="sec-hdr">
+  <div class="sec-num">00 — ARCH</div>
+  <div class="sec-title">System Data Flow</div>
+  <div class="sec-line"></div>
+</div>
+
+<div class="arch-strip">
+  <div class="arch-layer">
+    <div class="arch-icon">📷</div>
+    <div class="arch-name">VERIFY</div>
+    <div class="arch-items">OCR product scan<br>Weight check<br>AI vision match<br>Manual checklist</div>
+  </div>
+  <div class="arch-layer">
+    <div class="arch-icon">📡</div>
+    <div class="arch-name">NFC WRITE</div>
+    <div class="arch-items">Manifest hash → tag<br>Sector lock (AES-128)<br>Tamper seal apply<br>Portal gate verify</div>
+  </div>
+  <div class="arch-layer">
+    <div class="arch-icon">🏭</div>
+    <div class="arch-name">HUB TRACK</div>
+    <div class="arch-items">Gate scan events<br>Live dashboard<br>Missing box alert<br>MQTT → Supabase</div>
+  </div>
+  <div class="arch-layer">
+    <div class="arch-icon">🚚</div>
+    <div class="arch-name">TRUCK + RETURN</div>
+    <div class="arch-items">GPS + RFID on truck<br>5-min inventory scan<br>Delivery sign-off<br>Return → credit</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ SCREEN 01 — LOGIN ═══ -->
+<div class="sec-hdr">
+  <div class="sec-num">SCREEN 01</div>
+  <div class="sec-title">Worker Login</div>
+  <div class="sec-line"></div>
+</div>
+
+<div class="screen-card s-pack">
+  <div class="sc-head">
+    <div class="sc-num">01 / 09</div>
+    <div class="sc-ico">🔐</div>
+    <div class="sc-name">Worker Login & Biometric Auth</div>
+    <div class="sc-route">/login</div>
+  </div>
+  <div class="sc-desc">Entry point for warehouse workers. Supports email + PIN login or biometric (fingerprint / face). Worker role (packer, supervisor, driver) determines which screens are accessible. Offline login caches last session with 12-hour JWT.</div>
+  <div class="sc-body">
+    <div class="mockup-col">
+      <div class="mockup-label">Screen Preview</div>
+      <div class="phone">
+        <div class="ph-status"><span>09:41</span><span>▮▮▮</span></div>
+        <div class="ph-screen">
+          <div style="text-align:center;padding:16px 0 12px">
+            <div style="font-size:24px;margin-bottom:6px">📦</div>
+            <div style="font-family:var(--mono);font-size:14px;font-weight:700;color:#fff;letter-spacing:-1px">SMART<span style="color:var(--or)">DISPATCH</span></div>
+            <div style="font-size:8px;color:var(--mt);font-family:var(--mono);letter-spacing:2px;margin-top:3px">WORKER PORTAL</div>
+          </div>
+          <div class="ph-input-label">Worker ID / Email</div>
+          <div class="ph-input">WK-04219 ██████████</div>
+          <div class="ph-input-label">PIN (6-digit)</div>
+          <div class="ph-input">● ● ● ● ● ●</div>
+          <div style="display:flex;gap:4px">
+            <div class="ph-btn" style="flex:1">SIGN IN</div>
+            <div class="ph-btn sec" style="flex-shrink:0;padding:7px">👆</div>
+          </div>
+          <div class="ph-divider"></div>
+          <div class="ph-badge or" style="display:block;text-align:center;padding:5px">BIOMETRIC / FACE ID AVAILABLE</div>
+          <div style="font-size:7px;color:var(--mt);text-align:center;margin-top:8px;font-family:var(--mono)">Works offline · JWT cached 12h</div>
+        </div>
+      </div>
+    </div>
+    <div class="spec-col">
+      <div class="spec-title">Fields & Inputs</div>
+      <table class="ftable">
+        <tr><th>Field</th><th>Type</th><th>Validation</th><th>Req</th></tr>
+        <tr><td class="fn">worker_id</td><td class="ft">TextInput</td><td class="fdesc">WK-XXXXX format or email</td><td class="req y">Y</td></tr>
+        <tr><td class="fn">pin</td><td class="ft">SecureInput</td><td class="fdesc">6 digits, obscured, local SHA-256 hash</td><td class="req c">C</td></tr>
+        <tr><td class="fn">biometric_token</td><td class="ft">LocalAuth</td><td class="fdesc">flutter_local_auth, fingerprint / face</td><td class="req c">C</td></tr>
+        <tr><td class="fn">remember_me</td><td class="ft">Toggle</td><td class="fdesc">Caches JWT in FlutterSecureStorage</td><td class="req n">N</td></tr>
+        <tr><td class="fn">role</td><td class="ft">Auto (server)</td><td class="fdesc">packer / supervisor / driver / return_desk</td><td class="req y">Y</td></tr>
+      </table>
+      <div class="spec-title">Auth Logic</div>
+      <div class="logic"><span class="comment">// Login flow</span>
+<span class="key">if</span> (biometric_available && user_enrolled)
+  <span class="key">→</span> LocalAuth.authenticate()
+  <span class="key">→</span> use cached JWT (refresh if expired)
+<span class="key">else</span>
+  <span class="key">→</span> POST /api/auth/login {worker_id, pin_hash}
+  <span class="key">→</span> receive JWT + role
+  <span class="key">→</span> store in FlutterSecureStorage
+
+<span class="comment">// Offline fallback</span>
+<span class="key">if</span> (no_network && cached_jwt_valid)
+  <span class="key">→</span> allow login, queue sync</div>
+      <div class="spec-title">Permissions Required on First Launch</div>
+      <div class="rules">
+        <div class="rule or"><div class="rule-ico">📷</div><div class="rule-txt"><strong>CAMERA</strong> — OCR product label scan, AI vision check, seal photo capture</div></div>
+        <div class="rule bl"><div class="rule-ico">📲</div><div class="rule-txt"><strong>NFC</strong> — Read/write NFC tags embedded in smart boxes (flutter_nfc_kit)</div></div>
+        <div class="rule gn"><div class="rule-ico">📍</div><div class="rule-txt"><strong>LOCATION (coarse)</strong> — truck scan GPS logging</div></div>
+        <div class="rule yw"><div class="rule-ico">📳</div><div class="rule-txt"><strong>VIBRATION</strong> — haptic on tamper alert or scan fail</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ SCREEN 02 — HOME DASHBOARD ═══ -->
+<div class="sec-hdr">
+  <div class="sec-num">SCREEN 02</div>
+  <div class="sec-title">Packer Home Dashboard</div>
+  <div class="sec-line"></div>
+</div>
+
+<div class="screen-card s-pack">
+  <div class="sc-head">
+    <div class="sc-num">02 / 09</div>
+    <div class="sc-ico">🏠</div>
+    <div class="sc-name">Packer Home — Orders Queue + Alerts</div>
+    <div class="sc-route">/home</div>
+  </div>
+  <div class="sc-desc">Landing screen after login. Shows today's packing queue, active alerts (tamper, wrong-box), and quick-action buttons. Real-time updates via Supabase Realtime subscription on <code>orders</code> and <code>box_seals</code> tables.</div>
+  <div class="sc-body">
+    <div class="mockup-col">
+      <div class="mockup-label">Screen Preview</div>
+      <div class="phone">
+        <div class="ph-status"><span>09:41</span><span>WK-04219</span></div>
+        <div class="ph-screen">
+          <div class="ph-appbar">
+            <div class="ph-appbar-ico">📦</div>
+            <div class="ph-appbar-title">SmartDispatch</div>
+            <div class="ph-badge or" style="margin-left:auto">2 ALERTS</div>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-bottom:8px">
+            <div class="ph-stat"><div class="ph-stat-val" style="color:var(--or)">12</div><div class="ph-stat-lbl">To Pack</div></div>
+            <div class="ph-stat"><div class="ph-stat-val" style="color:var(--gn)">47</div><div class="ph-stat-lbl">Packed Today</div></div>
+          </div>
+          <div class="ph-alert"><div class="ph-alert-txt">⚠ TAMPER — Box SDB-03821 · Dock 3</div></div>
+          <div class="ph-section">Pending Orders</div>
+          <div class="ph-card">
+            <div class="ph-row">
+              <div class="ph-card-title">ORD-2024-8821</div>
+              <div class="ph-badge or">URGENT</div>
+            </div>
+            <div class="ph-card-sub">Mrs. Priya · 8 items · Truck T-07</div>
+          </div>
+          <div class="ph-card">
+            <div class="ph-row">
+              <div class="ph-card-title">ORD-2024-8822</div>
+              <div class="ph-badge bl">NORMAL</div>
+            </div>
+            <div class="ph-card-sub">Mr. Rajan · 3 items · Truck T-05</div>
+          </div>
+          <div class="ph-btn gn" style="margin-top:8px">▸ START PACKING</div>
+        </div>
+      </div>
+    </div>
+    <div class="spec-col">
+      <div class="spec-title">Data Displayed</div>
+      <table class="ftable">
+        <tr><th>Widget</th><th>Source</th><th>Update</th></tr>
+        <tr><td class="fn">orders_to_pack</td><td class="ft">Supabase Realtime</td><td class="fdesc">Live subscription — order assigned to this packer</td></tr>
+        <tr><td class="fn">packed_today_count</td><td class="ft">Local Drift DB</td><td class="fdesc">Refreshed on each screen resume</td></tr>
+        <tr><td class="fn">active_alerts</td><td class="ft">Supabase Realtime</td><td class="fdesc">Channel: <code>tamper_alerts</code>, FCM push backup</td></tr>
+        <tr><td class="fn">order_priority</td><td class="ft">orders.priority</td><td class="fdesc">URGENT / NORMAL / LOW — color-coded</td></tr>
+        <tr><td class="fn">truck_assignment</td><td class="ft">orders.truck_id</td><td class="fdesc">Shows truck label for context</td></tr>
+      </table>
+      <div class="spec-title">Quick Actions</div>
+      <div class="rules">
+        <div class="rule or"><div class="rule-ico">▸</div><div class="rule-txt"><strong>START PACKING</strong> — Opens order selection screen</div></div>
+        <div class="rule rd"><div class="rule-ico">⚠</div><div class="rule-txt"><strong>VIEW ALERTS</strong> — Opens alert feed; supervisor PIN to dismiss tamper alert</div></div>
+        <div class="rule bl"><div class="rule-ico">📲</div><div class="rule-txt"><strong>NFC TOOLS</strong> — Manual tag read / NFC diagnostics, force-poll a tag</div></div>
+        <div class="rule pu"><div class="rule-ico">📦</div><div class="rule-txt"><strong>BOX INVENTORY</strong> — View available empty smart boxes</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ SCREEN 03 — OCR / PRODUCT SCAN ═══ -->
+<div class="sec-hdr">
+  <div class="sec-num">SCREEN 03</div>
+  <div class="sec-title">OCR Product Scan & Verification</div>
+  <div class="sec-line"></div>
+</div>
+
+<div class="screen-card s-vis">
+  <div class="sc-head">
+    <div class="sc-num">03 / 09</div>
+    <div class="sc-ico">🔍</div>
+    <div class="sc-name">Camera OCR — Scan Product Labels to Verify</div>
+    <div class="sc-route">/pack/:orderId/scan</div>
+  </div>
+  <div class="sc-desc">Worker points camera at product label. On-device OCR (google_ml_kit TextRecognizer) extracts SKU, barcode, product name. Result is matched against the order manifest. Wrong product → red fail with buzz. Right product → green tick and auto-advance. This replaces manual visual checking entirely.</div>
+  <div class="sc-body">
+    <div class="mockup-col">
+      <div class="mockup-label">Screen Preview</div>
+      <div class="phone">
+        <div class="ph-status"><span>09:43</span><span>SCANNING</span></div>
+        <div class="ph-screen">
+          <div class="ph-appbar">
+            <div class="ph-appbar-ico">←</div>
+            <div class="ph-appbar-title">Scan Product</div>
+            <div class="ph-badge gn" style="margin-left:auto">3/8</div>
+          </div>
+          <div style="background:#000;border:2px solid var(--gn);padding:4px;margin-bottom:6px;position:relative">
+            <div style="background:#111;height:90px;display:flex;align-items:center;justify-content:center;position:relative;overflow:hidden">
+              <div style="position:absolute;top:50%;left:0;right:0;height:1px;background:rgba(34,211,160,.6);box-shadow:0 0 6px var(--gn)"></div>
+              <div style="font-size:20px">📦</div>
+              <!-- Corner brackets -->
+              <div style="position:absolute;top:4px;left:4px;width:12px;height:12px;border-top:2px solid var(--gn);border-left:2px solid var(--gn)"></div>
+              <div style="position:absolute;top:4px;right:4px;width:12px;height:12px;border-top:2px solid var(--gn);border-right:2px solid var(--gn)"></div>
+              <div style="position:absolute;bottom:4px;left:4px;width:12px;height:12px;border-bottom:2px solid var(--gn);border-left:2px solid var(--gn)"></div>
+              <div style="position:absolute;bottom:4px;right:4px;width:12px;height:12px;border-bottom:2px solid var(--gn);border-right:2px solid var(--gn)"></div>
+            </div>
+            <div style="font-size:7px;text-align:center;color:var(--gn);font-family:var(--mono);padding:3px 0">ALIGN LABEL — OCR ACTIVE</div>
+          </div>
+          <div style="background:var(--gn-d);border:1px solid rgba(34,211,160,.4);padding:7px;margin-bottom:5px">
+            <div class="ph-rfid-row"><span class="ph-rfid-key">SKU DETECTED</span><span style="color:var(--gn)">SKU-9821-AA</span></div>
+            <div class="ph-rfid-row"><span class="ph-rfid-key">PRODUCT</span><span style="color:var(--gn)">Basmati Rice 5kg</span></div>
+            <div class="ph-rfid-row"><span class="ph-rfid-key">ORDER EXPECTS</span><span style="color:var(--gn)">Basmati Rice 5kg</span></div>
+            <div class="ph-rfid-row"><span class="ph-rfid-key">MATCH</span><span style="color:var(--gn);font-weight:700">✓ PASS</span></div>
+          </div>
+          <div class="ph-section">Order Checklist</div>
+          <div class="ph-check"><div class="ph-check-box done">✓</div><div class="ph-check-text">Basmati Rice 5kg</div><div class="ph-check-qty">×1</div></div>
+          <div class="ph-check"><div class="ph-check-box done">✓</div><div class="ph-check-text">Toor Dal 2kg</div><div class="ph-check-qty">×2</div></div>
+          <div class="ph-check"><div class="ph-check-box pend"></div><div class="ph-check-text">Coconut Oil 1L</div><div class="ph-check-qty">×1</div></div>
+          <div class="ph-check"><div class="ph-check-box pend"></div><div class="ph-check-text">Atta Flour 10kg</div><div class="ph-check-qty">×1</div></div>
+        </div>
+      </div>
+    </div>
+    <div class="spec-col">
+      <div class="spec-title">OCR Technical Spec</div>
+      <table class="ftable">
+        <tr><th>Property</th><th>Value</th></tr>
+        <tr><td class="fn">OCR Library</td><td class="fdesc">google_ml_kit 0.16+ — TextRecognizer (on-device, no cloud)</td></tr>
+        <tr><td class="fn">Barcode Library</td><td class="fdesc">flutter_barcode_scanner or mobile_scanner — reads EAN-13, QR, Code128</td></tr>
+        <tr><td class="fn">Processing</td><td class="fdesc">On-device — no internet needed; results in &lt;200ms</td></tr>
+        <tr><td class="fn">Match Logic</td><td class="fdesc">Fuzzy SKU match (Jaro-Winkler ≥ 0.92) OR exact barcode match</td></tr>
+        <tr><td class="fn">On PASS</td><td class="fdesc">Green overlay, haptic success, item checked off, auto-advance</td></tr>
+        <tr><td class="fn">On FAIL</td><td class="fdesc">Red overlay, buzzer haptic, show expected vs scanned diff, BLOCK advance</td></tr>
+        <tr><td class="fn">Fallback</td><td class="fdesc">Manual override requires supervisor PIN; logged as exception in <code>scan_events</code></td></tr>
+      </table>
+      <div class="spec-title">What OCR Extracts from Label</div>
+      <div class="rules">
+        <div class="rule gn"><div class="rule-ico">🔢</div><div class="rule-txt"><strong>SKU</strong> — alphanumeric product code, matched against <code>orders.product_manifest[].sku</code></div></div>
+        <div class="rule bl"><div class="rule-ico">📊</div><div class="rule-txt"><strong>Barcode (EAN-13/QR)</strong> — cross-checked with product catalogue in local SQLite cache</div></div>
+        <div class="rule or"><div class="rule-ico">📝</div><div class="rule-txt"><strong>Product Name</strong> — NLP token match as secondary confirm layer</div></div>
+        <div class="rule yw"><div class="rule-ico">⚖</div><div class="rule-txt"><strong>Weight printed on label</strong> — compared to expected weight for pre-check before scale</div></div>
+        <div class="rule pu"><div class="rule-ico">📅</div><div class="rule-txt"><strong>Expiry Date</strong> — extracted and logged; flag if within 14 days</td></div>
+      </div>
+      <div class="spec-title">Failure Modes & Handling</div>
+      <table class="ftable">
+        <tr><th>Failure</th><th>Action</th></tr>
+        <tr><td class="fn">Wrong SKU scanned</td><td class="fdesc">Red block — cannot proceed. Shows expected product name. Supervisor override.</td></tr>
+        <tr><td class="fn">Label unreadable</td><td class="fdesc">Prompt retry 3×, then allow manual SKU entry + photo evidence saved</td></tr>
+        <tr><td class="fn">Expired product</td><td class="fdesc">Yellow warning — packer acknowledges or rejects item</td></tr>
+        <tr><td class="fn">Duplicate scan</td><td class="fdesc">"Already scanned" toast — prevents double-packing same unit</td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ SCREEN 04 — WEIGHT VERIFICATION ═══ -->
+<div class="sec-hdr">
+  <div class="sec-num">SCREEN 04</div>
+  <div class="sec-title">Weight Verification</div>
+  <div class="sec-line"></div>
+</div>
+
+<div class="screen-card s-weight">
+  <div class="sc-head">
+    <div class="sc-num">04 / 09</div>
+    <div class="sc-ico">⚖</div>
+    <div class="sc-name">Smart Scale Weight Check (Bluetooth Scale)</div>
+    <div class="sc-route">/pack/:orderId/weight</div>
+  </div>
+  <div class="sc-desc">After all items scanned via OCR, the packed box is placed on a Bluetooth smart scale. App reads live weight via BLE. Expected weight (sum of all product weights from manifest + box tare weight) is compared. Tolerance ±50g. Used as a second verification layer — catches missing/extra items that OCR alone might miss.</div>
+  <div class="sc-body">
+    <div class="mockup-col">
+      <div class="mockup-label">Screen Preview</div>
+      <div class="phone">
+        <div class="ph-status"><span>09:45</span><span>⚖ SCALE</span></div>
+        <div class="ph-screen">
+          <div class="ph-appbar">
+            <div class="ph-appbar-ico">←</div>
+            <div class="ph-appbar-title">Weight Check</div>
+            <div class="ph-badge gn" style="margin-left:auto">BLE ●</div>
+          </div>
+          <div class="ph-circle pass">
+            <div class="ph-circle-val">PASS</div>
+            <div class="ph-circle-sub">±8g</div>
+          </div>
+          <div style="background:var(--surf3);padding:10px;margin:6px 0">
+            <div class="ph-row"><div class="ph-label">MEASURED</div><div style="font-size:14px;font-weight:700;font-family:var(--mono);color:var(--gn)">8.742 kg</div></div>
+            <div class="ph-row"><div class="ph-label">EXPECTED</div><div style="font-size:14px;font-weight:700;font-family:var(--mono);color:var(--bl)">8.750 kg</div></div>
+            <div class="ph-row"><div class="ph-label">DELTA</div><div style="font-size:12px;font-family:var(--mono);color:var(--gn)">−8 g (within ±50g)</div></div>
+          </div>
+          <div class="ph-progress" style="height:6px"><div class="ph-progress-bar" style="width:85%;background:var(--gn)"></div></div>
+          <div style="display:flex;justify-content:space-between;font-size:7px;font-family:var(--mono);color:var(--mt);margin-top:2px"><span>−50g</span><span>TOLERANCE BAND</span><span>+50g</span></div>
+          <div class="ph-divider"></div>
+          <div class="ph-section">Manifest Weight Breakdown</div>
+          <div class="ph-rfid-row"><span class="ph-rfid-key">Box tare</span><span class="ph-rfid-val">0.850 kg</span></div>
+          <div class="ph-rfid-row"><span class="ph-rfid-key">Basmati Rice 5kg ×1</span><span class="ph-rfid-val">5.020 kg</span></div>
+          <div class="ph-rfid-row"><span class="ph-rfid-key">Toor Dal 2kg ×2</span><span class="ph-rfid-val">4.060 kg</span></div>
+          <div class="ph-btn gn" style="margin-top:8px">▸ WEIGHT PASSED — NEXT</div>
+        </div>
+      </div>
+    </div>
+    <div class="spec-col">
+      <div class="spec-title">Weight Fields & Logic</div>
+      <table class="ftable">
+        <tr><th>Field</th><th>Source</th><th>Description</th></tr>
+        <tr><td class="fn">measured_weight_g</td><td class="ft">BLE Scale</td><td class="fdesc">Live reading from Bluetooth scale (Ohaus, KERN, or generic BLE profile)</td></tr>
+        <tr><td class="fn">expected_weight_g</td><td class="ft">Computed</td><td class="fdesc">SUM(product_weight × qty) + box_tare_weight from <code>smart_boxes.tare_weight_g</code></td></tr>
+        <tr><td class="fn">delta_g</td><td class="ft">Computed</td><td class="fdesc">measured − expected; stored in <code>scan_events.weight_delta_g</code></td></tr>
+        <tr><td class="fn">tolerance_g</td><td class="ft">Config</td><td class="fdesc">Default ±50g; adjustable per product category in supervisor settings</td></tr>
+        <tr><td class="fn">result</td><td class="ft">Computed</td><td class="fdesc">PASS / WARN / FAIL — WARN if 50–150g delta (supervisor confirm)</td></tr>
+        <tr><td class="fn">scale_device_id</td><td class="ft">BLE</td><td class="fdesc">Logged to <code>scan_events</code> for traceability</td></tr>
+      </table>
+      <div class="spec-title">Weight Outcome Rules</div>
+      <div class="rules">
+        <div class="rule gn"><div class="rule-ico">✅</div><div class="rule-txt"><strong>PASS (delta ≤ ±50g)</strong> — Proceed to RFID write. Green overlay.</div></div>
+        <div class="rule yw"><div class="rule-ico">⚠</div><div class="rule-txt"><strong>WARN (±50–150g)</strong> — Supervisor PIN required to proceed. Logged as exception.</div></div>
+        <div class="rule rd"><div class="rule-ico">🚨</div><div class="rule-txt"><strong>FAIL (&gt;150g)</strong> — Hard block. Must recheck products, re-scan, re-weigh. Cannot proceed.</div></div>
+        <div class="rule bl"><div class="rule-ico">🔵</div><div class="rule-txt"><strong>No BLE Scale</strong> — Manual entry mode; weight typed and flagged as manual in audit log. NFC tag unchanged.</div></div>
+      </div>
+      <div class="spec-title">API Endpoint</div>
+      <div class="api-box">
+        <span class="api-method post">POST</span><span class="api-path">/api/pack/{orderId}/weight-verify</span>
+        <div class="api-desc">Records weight check result. Returns proceed / block decision.</div>
+        <div class="api-body">{
+  "box_id": "uuid",
+  "measured_g": 8742,
+  "scale_device": "BLE-KERN-0042",
+  "result": "PASS"
+}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ SCREEN 05 — AI VISION CHECK ═══ -->
+<div class="sec-hdr">
+  <div class="sec-num">SCREEN 05</div>
+  <div class="sec-title">AI Vision Verification (Third Layer)</div>
+  <div class="sec-line"></div>
+</div>
+
+<div class="screen-card s-vis">
+  <div class="sc-head">
+    <div class="sc-num">05 / 09</div>
+    <div class="sc-ico">🤖</div>
+    <div class="sc-name">AI Image Verification — Open Box Photo Check</div>
+    <div class="sc-route">/pack/:orderId/vision</div>
+  </div>
+  <div class="sc-desc">Third verification layer. Worker takes a photo of the packed box (open lid). Photo is sent to the backend Vision API (Google Vision / AWS Rekognition or on-device TFLite model). AI returns list of detected objects, which are matched against the order manifest. A SHA-256 hash of the resized photo is stored in Supabase for evidence. Supervisor-only to skip.</div>
+  <div class="sc-body">
+    <div class="mockup-col">
+      <div class="mockup-label">Screen Preview</div>
+      <div class="phone">
+        <div class="ph-status"><span>09:46</span><span>AI CHECK</span></div>
+        <div class="ph-screen">
+          <div class="ph-appbar">
+            <div class="ph-appbar-ico">←</div>
+            <div class="ph-appbar-title">AI Vision Check</div>
+            <div class="ph-badge pu" style="margin-left:auto">LAYER 3</div>
+          </div>
+          <div style="background:#000;border:2px solid var(--pu);padding:4px;margin-bottom:6px">
+            <div style="background:#111;height:80px;display:flex;align-items:center;justify-content:center">
+              <div style="text-align:center">
+                <div style="font-size:16px">📷</div>
+                <div style="font-size:7px;color:var(--pu);font-family:var(--mono)">PHOTO TAKEN</div>
+              </div>
+            </div>
+            <div style="font-size:7px;text-align:center;color:var(--pu);font-family:var(--mono);padding:3px 0">ANALYSING...</div>
+          </div>
+          <div style="background:var(--pu-d);border:1px solid rgba(167,139,250,.4);padding:7px;margin-bottom:5px">
+            <div style="font-size:7.5px;color:var(--pu);font-family:var(--mono);font-weight:700;margin-bottom:4px">AI DETECTED (5 objects)</div>
+            <div class="ph-check"><div class="ph-check-box done">✓</div><div class="ph-check-text">Rice bag (white, 5kg)</div><div class="ph-check-qty">94%</div></div>
+            <div class="ph-check"><div class="ph-check-box done">✓</div><div class="ph-check-text">Dal packet (yellow)</div><div class="ph-check-qty">91%</div></div>
+            <div class="ph-check"><div class="ph-check-box done">✓</div><div class="ph-check-text">Oil bottle (1L)</div><div class="ph-check-qty">88%</div></div>
+            <div class="ph-check"><div class="ph-check-box fail">✗</div><div class="ph-check-text" style="color:var(--rd)">Unknown item detected</div><div class="ph-check-qty" style="color:var(--rd)">71%</div></div>
+          </div>
+          <div class="ph-alert"><div class="ph-alert-txt">⚠ Unrecognised object in box — supervisor review</div></div>
+          <div style="display:flex;gap:4px">
+            <div class="ph-btn sec" style="flex:1">RETAKE</div>
+            <div class="ph-btn" style="flex:1;background:var(--pu)">SUPERVISOR PIN</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="spec-col">
+      <div class="spec-title">Vision API Fields</div>
+      <table class="ftable">
+        <tr><th>Field</th><th>Type</th><th>Description</th></tr>
+        <tr><td class="fn">photo_uri</td><td class="ft">File</td><td class="fdesc">Captured from camera, resized to 1024×768 JPEG before upload</td></tr>
+        <tr><td class="fn">photo_hash</td><td class="ft">SHA-256</td><td class="fdesc">Hash of photo bytes, stored as evidence in <code>scan_events.photo_hash</code></td></tr>
+        <tr><td class="fn">detected_objects</td><td class="ft">JSON[]</td><td class="fdesc">Array of {label, confidence, bounding_box} from Vision API</td></tr>
+        <tr><td class="fn">manifest_labels</td><td class="ft">String[]</td><td class="fdesc">Expected object labels derived from product names in manifest</td></tr>
+        <tr><td class="fn">match_score</td><td class="ft">Float 0–1</td><td class="fdesc">Jaccard similarity of detected vs expected labels</td></tr>
+        <tr><td class="fn">result</td><td class="ft">Enum</td><td class="fdesc">PASS (≥0.85) / WARN (0.6–0.85) / FAIL (&lt;0.6)</td></tr>
+        <tr><td class="fn">anomaly_flags</td><td class="ft">String[]</td><td class="fdesc">Extra objects not in manifest — logged for review</td></tr>
+      </table>
+      <div class="spec-title">Vision Stack Options</div>
+      <div class="rules">
+        <div class="rule gn"><div class="rule-ico">📱</div><div class="rule-txt"><strong>On-device TFLite</strong> (offline) — Custom-trained model on product catalogue. 50–70% accuracy. No network needed.</div></div>
+        <div class="rule bl"><div class="rule-ico">☁</div><div class="rule-txt"><strong>Google Cloud Vision API</strong> (online) — 80–95% accuracy. Requires WiFi. Cost: ~₹0.10/image.</div></div>
+        <div class="rule or"><div class="rule-ico">🔀</div><div class="rule-txt"><strong>Hybrid</strong> — TFLite for offline, auto-switch to Cloud when connected. Recommended for production.</div></div>
+      </div>
+      <div class="spec-title">Evidence Storage</div>
+      <div class="api-box">
+        <span class="api-method post">POST</span><span class="api-path">/api/pack/{orderId}/vision-verify</span>
+        <div class="api-body">{
+  "box_id": "uuid",
+  "photo_hash": "sha256_hex",
+  "match_score": 0.91,
+  "result": "WARN",
+  "anomaly_flags": ["unknown_item_detected"]
+}</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ SCREEN 06 — RFID WRITE & LOCK ═══ -->
+<div class="sec-hdr">
+  <div class="sec-num">SCREEN 06</div>
+  <div class="sec-title">RFID Write, Encrypt & Sector Lock</div>
+  <div class="sec-line"></div>
+</div>
+
+<div class="screen-card s-rfid">
+  <div class="sc-head">
+    <div class="sc-num">06 / 09</div>
+    <div class="sc-ico">📡</div>
+    <div class="sc-name">NFC Tag Write — Manifest Hash + AES-128 Sector Lock</div>
+    <div class="sc-route">/pack/:orderId/nfc-write</div>
+  </div>
+  <div class="sc-desc">Only available after all three verifications pass. Worker taps the phone's NFC reader directly onto the NXP NTAG 424 DNA / ICODE SLIX2 tag embedded in the box lid. App uses <code>flutter_nfc_kit</code> to write the order manifest SHA-256 hash + order metadata to tag memory pages. All write pages are locked with AES-128 password. Kill password stored encrypted in Supabase vault. After write, lock state is verified with a read-back check — all within the same NFC session.</div>
+  <div class="sc-body">
+    <div class="mockup-col">
+      <div class="mockup-label">Screen Preview</div>
+      <div class="phone">
+        <div class="ph-status"><span>09:48</span><span>NFC READY ◈</span></div>
+        <div class="ph-screen">
+          <div class="ph-appbar">
+            <div class="ph-appbar-ico">←</div>
+            <div class="ph-appbar-title">NFC Write</div>
+            <div class="ph-badge bl" style="margin-left:auto">NTAG 424 DNA</div>
+          </div>
+          <div class="ph-scan-area" style="border-color:var(--bl)">
+            <div class="ph-scan-ico">📲</div>
+            <div class="ph-scan-txt" style="color:var(--bl)">TAP PHONE TO BOX LID — WRITING...</div>
+          </div>
+          <div class="ph-rfid" style="margin-top:6px">
+            <div class="ph-rfid-row"><span class="ph-rfid-key">TAG UID</span><span class="ph-rfid-val">04:A3:2F:91:8B:1C:80</span></div>
+            <div class="ph-rfid-row"><span class="ph-rfid-key">PAGE 0 (UID)</span><span style="color:var(--gn)">✓ WRITTEN</span></div>
+            <div class="ph-rfid-row"><span class="ph-rfid-key">PAGE 1 (ORDER)</span><span style="color:var(--gn)">✓ WRITTEN</span></div>
+            <div class="ph-rfid-row"><span class="ph-rfid-key">PAGE 2 (HASH)</span><span style="color:var(--yw)">⟳ WRITING...</span></div>
+            <div class="ph-rfid-row"><span class="ph-rfid-key">PAGE 3 (KEY)</span><span class="ph-rfid-key">PENDING</span></div>
+            <div class="ph-rfid-row"><span class="ph-rfid-key">LOCK STATE</span><span class="ph-rfid-key">NOT YET LOCKED</span></div>
+          </div>
+          <div class="ph-progress" style="height:6px"><div class="ph-progress-bar" style="width:55%;background:var(--bl)"></div></div>
+          <div style="font-size:7px;font-family:var(--mono);color:var(--mt);margin-top:2px">Writing sector 2 of 4...</div>
+          <div class="ph-divider"></div>
+          <div style="font-size:7.5px;color:var(--mt);font-family:var(--mono);line-height:1.6">Manifest SHA-256:<br><span style="color:var(--bl)">a4f2...d91c</span></div>
+        </div>
+      </div>
+    </div>
+    <div class="spec-col">
+      <div class="spec-title">NFC Memory Map (NXP NTAG 424 DNA / ICODE SLIX2)</div>
+      <table class="ftable">
+        <tr><th>Page</th><th>Size</th><th>Data Written</th><th>Lock?</th></tr>
+        <tr><td class="fn">0 — UID</td><td class="ft">7 byte</td><td class="fdesc">Tag UID (factory-set, read-only). Used as box fingerprint in DB lookup.</td><td class="tag gn">READ-ONLY</td></tr>
+        <tr><td class="fn">1 — User (Order)</td><td class="ft">256 byte</td><td class="fdesc">order_id, customer_id, truck_id, dispatch_date — JSON UTF-8, AES-128 encrypted</td><td class="tag gn">LOCKED</td></tr>
+        <tr><td class="fn">2 — User (Hash)</td><td class="ft">32 byte</td><td class="fdesc">SHA-256(product_manifest JSON) — tamper verification on delivery arrival</td><td class="tag gn">LOCKED</td></tr>
+        <tr><td class="fn">3 — Access</td><td class="ft">8 byte</td><td class="fdesc">HMAC-SHA256 challenge seed. Password stored only in Supabase vault. Auth required to unlock.</td><td class="tag rd">PWD-LOCKED</td></tr>
+      </table>
+      <div class="spec-title">NFC Write Flow</div>
+      <div class="flow-steps">
+        <div class="fls"><div class="fls-dot bl">1</div><div><div class="fls-title">Enable NFC Session</div><div class="fls-desc"><code>FlutterNfcKit.poll()</code> — app waits for tag. Worker taps phone to box lid. ISO 15693 / ISO 14443 discovery.</div></div></div>
+        <div class="fls"><div class="fls-dot or">2</div><div><div class="fls-title">Fetch Write Payload</div><div class="fls-desc">GET <code>/api/nfc/write-payload/{orderId}</code> — server returns AES-128 encrypted page data. Key never stored on device.</div></div></div>
+        <div class="fls"><div class="fls-dot gn">3</div><div><div class="fls-title">Write Pages 1–3</div><div class="fls-desc">Sequential NDEF / raw page write with read-back verify after each page. Mismatch → retry ×3 → alert.</div></div></div>
+        <div class="fls"><div class="fls-dot yw">4</div><div><div class="fls-title">Password Lock</div><div class="fls-desc">POST <code>/api/nfc/lock</code> with box_id. Server returns PWD_AUTH0 payload. App writes to tag access config page.</div></div></div>
+        <div class="fls"><div class="fls-dot pu">5</div><div><div class="fls-title">Verify Lock State</div><div class="fls-desc">Attempt write without password → should return AUTH_ERROR (confirm lock active).</div></div></div>
+        <div class="fls"><div class="fls-dot gn">6</div><div><div class="fls-title">Confirm to Backend</div><div class="fls-desc">POST lock confirmation. Supabase <code>smart_boxes.status</code> updated to <code>packed</code>. NFC session closed.</div></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ SCREEN 07 — SEAL & CONFIRM ═══ -->
+<div class="sec-hdr">
+  <div class="sec-num">SCREEN 07</div>
+  <div class="sec-title">Tamper Seal Application & Photo Evidence</div>
+  <div class="sec-line"></div>
+</div>
+
+<div class="screen-card s-pack">
+  <div class="sc-head">
+    <div class="sc-num">07 / 09</div>
+    <div class="sc-ico">🔒</div>
+    <div class="sc-name">Apply Tamper Seal + Capture Photo Evidence</div>
+    <div class="sc-route">/pack/:orderId/seal</div>
+  </div>
+  <div class="sc-desc">Worker applies physical tamper-evident seal across the box lid gap. App guides placement with on-screen overlay. Worker then takes a seal photo with the camera. Photo is run through OCR to confirm the printed seal serial number matches the seal_id issued by the backend. Photo hash is stored as legal evidence.</div>
+  <div class="sc-body">
+    <div class="mockup-col">
+      <div class="mockup-label">Screen Preview</div>
+      <div class="phone">
+        <div class="ph-status"><span>09:50</span><span>SEAL</span></div>
+        <div class="ph-screen">
+          <div class="ph-appbar">
+            <div class="ph-appbar-ico">←</div>
+            <div class="ph-appbar-title">Apply Seal</div>
+            <div class="ph-badge or" style="margin-left:auto">STEP 4/5</div>
+          </div>
+          <div style="background:var(--or-g);border:1px solid rgba(249,115,22,.4);padding:8px;margin-bottom:6px">
+            <div style="font-size:7.5px;color:var(--or);font-family:var(--mono);font-weight:700;margin-bottom:4px">SEAL PLACEMENT GUIDE</div>
+            <!-- Box diagram mini -->
+            <div style="background:#111;height:50px;border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;position:relative">
+              <div style="font-size:16px">📦</div>
+              <div style="position:absolute;top:50%;left:10%;right:10%;height:3px;background:var(--or);transform:translateY(-50%)"></div>
+              <div style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);font-size:6px;font-family:var(--mono);color:var(--bg);font-weight:700;white-space:nowrap;background:var(--or);padding:0 4px">PLACE SEAL HERE</div>
+            </div>
+          </div>
+          <div class="ph-rfid" style="background:var(--surf3);border-color:var(--border2)">
+            <div class="ph-rfid-row"><span class="ph-rfid-key">SEAL SERIAL (Issued)</span><span style="color:var(--or)">SL-20240605-04219</span></div>
+            <div class="ph-rfid-row"><span class="ph-rfid-key">SEAL SERIAL (Scanned)</span><span style="color:var(--gn)">SL-20240605-04219 ✓</span></div>
+            <div class="ph-rfid-row"><span class="ph-rfid-key">MATCH</span><span style="color:var(--gn)">✓ CONFIRMED</span></div>
+          </div>
+          <div class="ph-scan-area" style="height:60px;border-color:var(--gn)">
+            <div style="font-size:7px;color:var(--gn);font-family:var(--mono)">📷 SEAL PHOTO CAPTURED</div>
+            <div style="font-size:6.5px;color:var(--mt);font-family:var(--mono);margin-top:2px">Hash: a4f2...91c — SAVED</div>
+          </div>
+          <div class="ph-btn gn" style="margin-top:8px">✓ SEAL CONFIRMED — DISPATCH</div>
+        </div>
+      </div>
+    </div>
+    <div class="spec-col">
+      <div class="spec-title">Seal Verification Fields</div>
+      <table class="ftable">
+        <tr><th>Field</th><th>Source</th><th>Description</th></tr>
+        <tr><td class="fn">seal_id</td><td class="ft">Backend issued</td><td class="fdesc">Unique per pack event. Printed on seal label. Format: SL-YYYYMMDD-XXXXX</td></tr>
+        <tr><td class="fn">seal_serial_ocr</td><td class="ft">Camera OCR</td><td class="fdesc">OCR reads serial from printed seal — must match issued seal_id exactly</td></tr>
+        <tr><td class="fn">seal_photo_uri</td><td class="ft">Camera capture</td><td class="fdesc">JPEG photo of applied seal on box</td></tr>
+        <tr><td class="fn">seal_photo_hash</td><td class="ft">SHA-256</td><td class="fdesc">Stored in <code>box_seals.seal_photo_hash</code> as tamper evidence</td></tr>
+        <tr><td class="fn">sealed_by</td><td class="ft">JWT session</td><td class="fdesc">Worker ID from auth session — logged to <code>box_seals.sealed_by_worker</code></td></tr>
+        <tr><td class="fn">sealed_at</td><td class="ft">Timestamp</td><td class="fdesc">Server-side timestamptz at confirmation API call</td></tr>
+      </table>
+      <div class="spec-title">Rules</div>
+      <div class="rules">
+        <div class="rule or"><div class="rule-ico">🔒</div><div class="rule-txt"><strong>Seal serial mismatch</strong> — Hard block. Seal may have been swapped. Supervisor alert raised.</div></div>
+        <div class="rule gn"><div class="rule-ico">📷</div><div class="rule-txt"><strong>Photo evidence mandatory</strong> — Cannot proceed without photo. Photo hash stored in DB as legal proof.</div></div>
+        <div class="rule rd"><div class="rule-ico">🌡</div><div class="rule-txt"><strong>Thermochromic check</strong> — App prompts worker to visually confirm seal colour is white (not triggered). Checkbox required.</div></div>
+        <div class="rule bl"><div class="rule-ico">📝</div><div class="rule-txt"><strong>Seal batch logging</strong> — Seal batch number logged for recall traceability if a batch of seals is faulty.</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ SCREEN 08 — HUB TRACKING ═══ -->
+<div class="sec-hdr">
+  <div class="sec-num">SCREEN 08</div>
+  <div class="sec-title">Warehouse Hub Tracking — Gate Scan & Loading</div>
+  <div class="sec-line"></div>
+</div>
+
+<div class="screen-card s-track">
+  <div class="sc-head">
+    <div class="sc-num">08 / 09</div>
+    <div class="sc-ico">🏭</div>
+    <div class="sc-name">Hub / Warehouse Gate Scan — Loading Verification & MQTT Events</div>
+    <div class="sc-route">/hub/gate-scan</div>
+  </div>
+  <div class="sc-desc">Supervisor / dock worker view. Impinj Speedway R420 portal gate reads all boxes simultaneously as the truck is loaded. App subscribes to MQTT topic <code>hub/gate/{dockId}/scans</code>. Shows live list of boxes scanned. Any box not on the truck manifest triggers red alert + buzzer. Wrong truck assignment also flagged. All scan events persisted to Supabase <code>scan_events</code>.</div>
+  <div class="sc-body">
+    <div class="mockup-col">
+      <div class="mockup-label">Screen Preview</div>
+      <div class="phone">
+        <div class="ph-status"><span>10:05</span><span>DOCK-3</span></div>
+        <div class="ph-screen">
+          <div class="ph-appbar">
+            <div class="ph-appbar-ico">🏭</div>
+            <div class="ph-appbar-title">Gate — Dock 3</div>
+            <div class="ph-badge gn" style="margin-left:auto">LIVE</div>
+          </div>
+          <div class="ph-row" style="margin-bottom:6px">
+            <div class="ph-stat" style="flex:1"><div class="ph-stat-val" style="color:var(--gn)">18</div><div class="ph-stat-lbl">Verified</div></div>
+            <div style="width:4px"></div>
+            <div class="ph-stat" style="flex:1"><div class="ph-stat-val" style="color:var(--rd)">1</div><div class="ph-stat-lbl">Mismatch</div></div>
+            <div style="width:4px"></div>
+            <div class="ph-stat" style="flex:1"><div class="ph-stat-val" style="color:var(--bl)">20</div><div class="ph-stat-lbl">Expected</div></div>
+          </div>
+          <div class="ph-alert"><div class="ph-alert-txt">🚨 SDB-03871 — NOT ON TRUCK T-07 MANIFEST</div></div>
+          <div class="ph-section">Live Gate Scans (Truck T-07)</div>
+          <div class="ph-card" style="border-color:var(--gn)">
+            <div class="ph-row">
+              <div class="ph-card-title" style="font-size:8px">SDB-04219 · ORD-8821</div>
+              <div class="ph-badge gn">✓ OK</div>
+            </div>
+            <div class="ph-card-sub">Mrs. Priya · 8.742 kg · Sealed ✓</div>
+          </div>
+          <div class="ph-card" style="border-color:var(--gn)">
+            <div class="ph-row">
+              <div class="ph-card-title" style="font-size:8px">SDB-04220 · ORD-8822</div>
+              <div class="ph-badge gn">✓ OK</div>
+            </div>
+            <div class="ph-card-sub">Mr. Rajan · 3.210 kg · Sealed ✓</div>
+          </div>
+          <div class="ph-card" style="border-color:var(--rd)">
+            <div class="ph-row">
+              <div class="ph-card-title" style="font-size:8px">SDB-03871 · ORD-8799</div>
+              <div class="ph-badge rd">✗ WRONG</div>
+            </div>
+            <div class="ph-card-sub" style="color:var(--rd)">Belongs to Truck T-05 — Remove!</div>
+          </div>
+          <div class="ph-btn rd" style="margin-top:6px">🚨 HALT LOADING</div>
+        </div>
+      </div>
+    </div>
+    <div class="spec-col">
+      <div class="spec-title">Hub Tracking Data Flow</div>
+      <div class="notice"><div class="notice-ico">ℹ️</div><div class="notice-txt">At the loading gate, the portal reader (Impinj R420 UHF) still reads boxes automatically. The NFC on the phone is used only by workers at the packing station for writing & locking tags. The gate/truck readers use passive UHF — the same NXP tag supports both NFC (ISO 14443) for close-range write and UHF backscatter for long-range portal reads.</div></div>
+      <div class="dflow">
+        <div class="dnode"><div class="dnode-ico">🚪</div><div class="dnode-name">GATE READER</div><div class="dnode-desc">Impinj R420<br>reads all tags</div></div>
+        <div class="darr"><div class="darr-top"><span>LLRP</span><div class="darr-ico">▶</div></div></div>
+        <div class="dnode"><div class="dnode-ico">🖥</div><div class="dnode-name">RFID MIDDLEWARE</div><div class="dnode-desc">Impinj ItemSense<br>or Octane SDK</div></div>
+        <div class="darr"><div class="darr-top"><span>MQTT</span><div class="darr-ico">▶</div></div></div>
+        <div class="dnode"><div class="dnode-ico">🔄</div><div class="dnode-name">BROKER</div><div class="dnode-desc">HiveMQ or<br>Mosquitto</div></div>
+        <div class="darr"><div class="darr-top"><span>subscribe</span><div class="darr-ico">▶</div></div></div>
+        <div class="dnode"><div class="dnode-ico">📱</div><div class="dnode-name">FLUTTER APP</div><div class="dnode-desc">Live gate scan<br>feed display</div></div>
+      </div>
+      <div class="spec-title">Gate Scan Event Fields (scan_events table)</div>
+      <table class="ftable">
+        <tr><th>Field</th><th>Value/Source</th></tr>
+        <tr><td class="fn">box_id</td><td class="fdesc">From RFID EPC sector read by portal gate</td></tr>
+        <tr><td class="fn">reader_id</td><td class="fdesc"><code>IMPINJ-R420-DOCK3</code> — hardware reader ID</td></tr>
+        <tr><td class="fn">location_type</td><td class="ft">gate</td></tr>
+        <tr><td class="fn">event_type</td><td class="fdesc">scan / wrong_truck / tamper_flag / missing</td></tr>
+        <tr><td class="fn">gps_lat / gps_lng</td><td class="fdesc">Warehouse GPS coordinates (fixed per dock)</td></tr>
+        <tr><td class="fn">scanned_at</td><td class="ft">timestamptz</td></tr>
+        <tr><td class="fn">manifest_check</td><td class="fdesc">PASS / FAIL — is this box in the truck's manifest?</td></tr>
+      </table>
+      <div class="spec-title">Alert Rules at Gate</div>
+      <div class="rules">
+        <div class="rule rd"><div class="rule-ico">🚨</div><div class="rule-txt"><strong>Wrong truck</strong> — Box EPC found in DB but truck_id mismatch. Red halt. Audio alarm. Loading suspended until resolved.</div></div>
+        <div class="rule or"><div class="rule-ico">⚠</div><div class="rule-txt"><strong>Tamper detected at gate</strong> — RFID read shows sector missing or hash mismatch. Quarantine box, raise investigation.</div></div>
+        <div class="rule yw"><div class="rule-ico">📍</div><div class="rule-txt"><strong>Unexpected box</strong> — EPC unknown to system (not in any active order). Could be old box — flag for re-provisioning.</div></div>
+        <div class="rule gn"><div class="rule-ico">✅</div><div class="rule-txt"><strong>All boxes verified</strong> — Count matches manifest. Green light. Driver app receives push: "OK to depart".</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ SCREEN 09 — TRUCK TRACKING + DELIVERY + RETURN ═══ -->
+<div class="sec-hdr">
+  <div class="sec-num">SCREEN 09</div>
+  <div class="sec-title">Truck Tracking, Delivery Sign-off & Box Return</div>
+  <div class="sec-line"></div>
+</div>
+
+<div class="screen-card s-return">
+  <div class="sc-head">
+    <div class="sc-num">09 / 09</div>
+    <div class="sc-ico">🚚</div>
+    <div class="sc-name">In-Transit Tracking · Delivery Confirm · Box Return Portal</div>
+    <div class="sc-route">/truck/:truckId/track &amp; /return</div>
+  </div>
+  <div class="sc-desc">Combined view for supervisors and return-desk workers. Shows live truck GPS + periodic RFID inventory status. Delivery confirmation flow (customer NFC tap or worker QR scan). Return desk scans returned boxes — RFID integrity + physical condition check — and triggers deposit credit in Supabase.</div>
+  <div class="sc-body three">
+    <!-- PANEL A: Truck tracking -->
+    <div class="mockup-col" style="border-right:1px solid var(--border)">
+      <div class="mockup-label">Truck Tracking</div>
+      <div class="phone">
+        <div class="ph-status"><span>11:22</span><span>TRUCK T-07</span></div>
+        <div class="ph-screen">
+          <div class="ph-appbar">
+            <div class="ph-appbar-ico">🚚</div>
+            <div class="ph-appbar-title">Truck T-07</div>
+            <div class="ph-badge gn" style="margin-left:auto">LIVE GPS</div>
+          </div>
+          <!-- Map placeholder -->
+          <div style="background:#080e1c;border:1px solid var(--border2);height:70px;display:flex;align-items:center;justify-content:center;margin-bottom:6px;position:relative;overflow:hidden">
+            <div style="position:absolute;inset:0;background:repeating-linear-gradient(0deg,rgba(56,189,248,.03) 0px,transparent 20px),repeating-linear-gradient(90deg,rgba(56,189,248,.03) 0px,transparent 20px)"></div>
+            <div style="font-size:11px">📍</div>
+            <div style="position:absolute;bottom:4px;left:6px;font-size:6.5px;color:var(--bl);font-family:var(--mono)">12.9716° N, 80.2209° E</div>
+          </div>
+          <div class="ph-rfid">
+            <div class="ph-rfid-row"><span class="ph-rfid-key">BOXES ON TRUCK</span><span style="color:var(--gn)">18 / 20</span></div>
+            <div class="ph-rfid-row"><span class="ph-rfid-key">LAST RFID SCAN</span><span class="ph-rfid-val">3 min ago</span></div>
+            <div class="ph-rfid-row"><span class="ph-rfid-key">NEXT SCAN</span><span class="ph-rfid-val">2 min</span></div>
+            <div class="ph-rfid-row"><span class="ph-rfid-key">MISSING BOX</span><span style="color:var(--yw)">SDB-04231 ⚠</span></div>
+          </div>
+          <div class="ph-alert" style="background:var(--yw-d);border-color:rgba(245,158,11,.4)"><div class="ph-alert-txt" style="color:var(--yw)">⚠ 2 boxes not in recent scan — check Dock 3</div></div>
+        </div>
+      </div>
+    </div>
+    <!-- PANEL B: Delivery -->
+    <div class="mockup-col" style="border-right:1px solid var(--border)">
+      <div class="mockup-label">Delivery Confirm</div>
+      <div class="phone">
+        <div class="ph-status"><span>14:35</span><span>DELIVERY</span></div>
+        <div class="ph-screen">
+          <div class="ph-appbar">
+            <div class="ph-appbar-ico">🏠</div>
+            <div class="ph-appbar-title">Deliver ORD-8821</div>
+          </div>
+          <div class="ph-card" style="border-color:var(--gn);margin-bottom:6px">
+            <div class="ph-card-title">Mrs. Priya · 12 Main St</div>
+            <div class="ph-card-sub">8 items · 2 boxes · SDB-04219, SDB-04220</div>
+          </div>
+          <div class="ph-section">Customer Verification</div>
+          <div class="ph-scan-area" style="border-color:var(--bl);height:50px">
+            <div style="font-size:7px;color:var(--bl);font-family:var(--mono)">📲 SCAN CUSTOMER QR / NFC TAP</div>
+          </div>
+          <div class="ph-section" style="margin-top:8px">Delivery Checklist</div>
+          <div class="ph-check"><div class="ph-check-box done">✓</div><div class="ph-check-text">SDB-04219 RFID intact</div></div>
+          <div class="ph-check"><div class="ph-check-box done">✓</div><div class="ph-check-text">SDB-04220 RFID intact</div></div>
+          <div class="ph-check"><div class="ph-check-box done">✓</div><div class="ph-check-text">Seals unbroken</div></div>
+          <div class="ph-check"><div class="ph-check-box pend"></div><div class="ph-check-text">Customer signed</div></div>
+          <div class="ph-btn gn" style="margin-top:8px">✓ CONFIRM DELIVERY</div>
+        </div>
+      </div>
+    </div>
+    <!-- PANEL C: Return -->
+    <div class="mockup-col" style="border-right:none">
+      <div class="mockup-label">Box Return Portal</div>
+      <div class="phone">
+        <div class="ph-status"><span>16:10</span><span>RETURN DESK</span></div>
+        <div class="ph-screen">
+          <div class="ph-appbar">
+            <div class="ph-appbar-ico">♻</div>
+            <div class="ph-appbar-title">Box Return</div>
+          </div>
+          <div class="ph-scan-area">
+            <div class="ph-scan-ico">📲</div>
+            <div class="ph-scan-txt">TAP PHONE TO BOX — NFC READ</div>
+          </div>
+          <div class="ph-rfid" style="margin-top:6px">
+            <div class="ph-rfid-row"><span class="ph-rfid-key">BOX ID</span><span class="ph-rfid-val">SDB-04219</span></div>
+            <div class="ph-rfid-row"><span class="ph-rfid-key">RFID STATUS</span><span style="color:var(--gn)">INTACT ✓</span></div>
+            <div class="ph-rfid-row"><span class="ph-rfid-key">SEAL</span><span style="color:var(--gn)">UNBROKEN ✓</span></div>
+            <div class="ph-rfid-row"><span class="ph-rfid-key">PHYSICAL</span><span style="color:var(--gn)">GOOD ✓</span></div>
+            <div class="ph-rfid-row"><span class="ph-rfid-key">LIFECYCLE</span><span class="ph-rfid-val">Use #47</span></div>
+            <div class="ph-rfid-row"><span class="ph-rfid-key">CREDIT</span><span style="color:var(--gn);font-weight:700">₹120 FULL</span></div>
+          </div>
+          <div class="ph-btn gn" style="margin-top:8px">♻ APPLY CREDIT + SANITISE</div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <!-- Spec row below all three mockups -->
+  <div style="border-top:1px solid var(--border)">
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:0">
+    <div class="spec-col" style="border-right:1px solid var(--border)">
+      <div class="spec-title">Truck Tracking — Data Fields</div>
+      <table class="ftable">
+        <tr><th>Field</th><th>Source</th><th>Description</th></tr>
+        <tr><td class="fn">truck_gps</td><td class="ft">RPi 4 gateway</td><td class="fdesc">Lat/Lng every 30s via MQTT <code>truck/{id}/gps</code></td></tr>
+        <tr><td class="fn">box_inventory</td><td class="ft">Zebra FX7500</td><td class="fdesc">5-min RFID scan of all boxes in truck cargo area</td></tr>
+        <tr><td class="fn">missing_boxes</td><td class="ft">Computed</td><td class="fdesc">boxes in last scan NOT in current scan → missing alert</td></tr>
+        <tr><td class="fn">tamper_en_route</td><td class="ft">RFID read-back</td><td class="fdesc">Periodic hash verify of sector 2 — mismatch = tampering</td></tr>
+        <tr><td class="fn">delivery_eta</td><td class="ft">Mapbox Directions</td><td class="fdesc">ETA to next delivery stop based on current GPS</td></tr>
+      </table>
+    </div>
+    <div class="spec-col">
+      <div class="spec-title">Box Return — Credit Logic</div>
+      <table class="ftable">
+        <tr><th>Condition</th><th>Credit</th></tr>
+        <tr><td class="fn">RFID intact + seal unbroken + good condition</td><td class="fdesc" style="color:var(--gn)">100% credit on next order</td></tr>
+        <tr><td class="fn">Minor physical wear + RFID intact</td><td class="fdesc" style="color:var(--yw)">50% credit</td></tr>
+        <tr><td class="fn">RFID sector tampered or missing</td><td class="fdesc" style="color:var(--rd)">0% — investigation triggered, box retired</td></tr>
+        <tr><td class="fn">Not returned within 30 days</td><td class="fdesc" style="color:var(--rd)">Full box cost charged to customer account</td></tr>
+        <tr><td class="fn">Returned after lifecycle #500</td><td class="fdesc" style="color:var(--mt)">50% — box retired from fleet, scheduled for recycling</td></tr>
+      </table>
+      <div class="spec-title">Post-Return Flow</div>
+      <div class="flow-steps">
+        <div class="fls"><div class="fls-dot gn">1</div><div><div class="fls-title">NFC Reset</div><div class="fls-desc">Worker taps phone to box. App authenticates with password from Supabase vault, unlocks pages. Old data cleared. Box status → <code>idle</code>.</div></div></div>
+        <div class="fls"><div class="fls-dot bl">2</div><div><div class="fls-title">Sanitise</div><div class="fls-desc">Box sent to cleaning station. Worker marks sanitised in app.</div></div></div>
+        <div class="fls"><div class="fls-dot or">3</div><div><div class="fls-title">Lifecycle Increment</div><div class="fls-desc"><code>smart_boxes.lifecycle_count++</code>. If ≥500: status → <code>retire</code>, flag for recycling queue.</div></div></div>
+        <div class="fls"><div class="fls-dot pu">4</div><div><div class="fls-title">Return to Fleet</div><div class="fls-desc">Box available for next packing assignment. Appears in packer's available-boxes list.</div></div></div>
+      </div>
+    </div>
+  </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ PERMISSIONS SUMMARY ═══ -->
+<div class="sec-hdr">
+  <div class="sec-num">APPENDIX A</div>
+  <div class="sec-title">Android Permissions Manifest</div>
+  <div class="sec-line"></div>
+</div>
+
+<div class="screen-card" style="border-color:var(--border2)">
+  <div class="sc-body full">
+    <div class="spec-col">
+      <div class="perm-row" style="border-bottom:1px solid var(--border)">
+        <div class="perm-ico">📷</div>
+        <div class="perm-name">CAMERA</div>
+        <div class="perm-reason">OCR label scan (google_ml_kit), AI vision photo, seal photo evidence</div>
+        <div class="tag rd">REQUIRED</div>
+      </div>
+      <div class="perm-row">
+        <div class="perm-ico">📲</div>
+        <div class="perm-name">NFC</div>
+        <div class="perm-reason">Read/write NFC tags in smart boxes — flutter_nfc_kit (ISO 14443 / ISO 15693)</div>
+        <div class="tag rd">REQUIRED</div>
+      </div>
+      <div class="perm-row">
+        <div class="perm-ico">📍</div>
+        <div class="perm-name">ACCESS_FINE_LOCATION</div>
+        <div class="perm-reason">BLE scan requires location on Android 12+; Truck GPS logging</div>
+        <div class="tag rd">REQUIRED</div>
+      </div>
+      <div class="perm-row">
+        <div class="perm-ico">🔔</div>
+        <div class="perm-name">POST_NOTIFICATIONS</div>
+        <div class="perm-reason">FCM push — tamper alerts, missing box, wrong dispatch</div>
+        <div class="tag rd">REQUIRED</div>
+      </div>
+      <div class="perm-row">
+        <div class="perm-ico">🌐</div>
+        <div class="perm-name">INTERNET</div>
+        <div class="perm-reason">Supabase API, MQTT broker, Vision API, RFID payload fetch</div>
+        <div class="tag rd">REQUIRED</div>
+      </div>
+      <div class="perm-row">
+        <div class="perm-ico">📳</div>
+        <div class="perm-name">VIBRATE</div>
+        <div class="perm-reason">Haptic feedback on scan pass/fail</div>
+        <div class="tag yw">OPTIONAL</div>
+      </div>
+      <div class="perm-row">
+        <div class="perm-ico">👆</div>
+        <div class="perm-name">USE_BIOMETRIC</div>
+        <div class="perm-reason">Fingerprint / Face ID login via flutter_local_auth</div>
+        <div class="tag yw">OPTIONAL</div>
+      </div>
+      <div class="perm-row" style="border-bottom:none">
+        <div class="perm-ico">💾</div>
+        <div class="perm-name">READ_EXTERNAL_STORAGE</div>
+        <div class="perm-reason">Photo storage for seal evidence (Android 12 and below)</div>
+        <div class="tag yw">OPTIONAL</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ OFFLINE SYNC ═══ -->
+<div class="sec-hdr">
+  <div class="sec-num">APPENDIX B</div>
+  <div class="sec-title">Offline Mode & Sync Strategy</div>
+  <div class="sec-line"></div>
+</div>
+
+<div class="screen-card" style="border-color:var(--border2)">
+  <div class="sc-body">
+    <div class="spec-col">
+      <div class="spec-title">What Works Offline</div>
+      <div class="rules">
+        <div class="rule gn"><div class="rule-ico">✅</div><div class="rule-txt"><strong>OCR label scan</strong> — on-device google_ml_kit; no network needed</div></div>
+        <div class="rule gn"><div class="rule-ico">✅</div><div class="rule-txt"><strong>NFC write & lock</strong> — AES key cached securely; works without server if payload pre-fetched</div></div>
+        <div class="rule gn"><div class="rule-ico">✅</div><div class="rule-txt"><strong>Weight check</strong> — BLE scale read is local; result stored in Drift SQLite</div></div>
+        <div class="rule gn"><div class="rule-ico">✅</div><div class="rule-txt"><strong>Seal photo capture</strong> — stored locally; synced when online</div></div>
+        <div class="rule gn"><div class="rule-ico">✅</div><div class="rule-txt"><strong>TFLite vision check</strong> — on-device model; no cloud needed</div></div>
+        <div class="rule yw"><div class="rule-ico">⚠</div><div class="rule-txt"><strong>Hub gate scan display</strong> — MQTT events buffered in local DB; real-time lost but catches up on reconnect</div></div>
+        <div class="rule rd"><div class="rule-ico">✗</div><div class="rule-txt"><strong>Cloud Vision API</strong> — requires internet; falls back to TFLite offline model automatically</div></div>
+      </div>
+    </div>
+    <div class="spec-col">
+      <div class="spec-title">Sync Strategy (Drift + Supabase)</div>
+      <div class="flow-steps">
+        <div class="fls"><div class="fls-dot bl">1</div><div><div class="fls-title">Write to Drift (local SQLite) first</div><div class="fls-desc">Every action saves locally. App works without network. Timestamp + <code>synced = false</code> flag.</div></div></div>
+        <div class="fls"><div class="fls-dot gn">2</div><div><div class="fls-title">Background sync on network restore</div><div class="fls-desc">Connectivity plugin fires. Queue of <code>synced=false</code> rows uploaded to Supabase in order.</div></div></div>
+        <div class="fls"><div class="fls-dot or">3</div><div><div class="fls-title">Conflict resolution</div><div class="fls-desc">Server timestamp wins. Any conflict logged to <code>sync_conflicts</code> table for supervisor review.</div></div></div>
+        <div class="fls"><div class="fls-dot pu">4</div><div><div class="fls-title">Incremental order prefetch</div><div class="fls-desc">On app open with network: pull next 24h orders into local cache for full offline operation.</div></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ KEY PACKAGES ═══ -->
+<div class="sec-hdr">
+  <div class="sec-num">APPENDIX C</div>
+  <div class="sec-title">Flutter Package Dependencies</div>
+  <div class="sec-line"></div>
+</div>
+
+<div class="screen-card" style="border-color:var(--border2)">
+  <div class="sc-body full">
+    <div class="spec-col">
+      <table class="ftable">
+        <tr><th>Package</th><th>Version</th><th>Used For</th></tr>
+        <tr><td class="fn">google_ml_kit</td><td class="fv">^0.16</td><td class="fdesc">On-device OCR (TextRecognizer) — product label scan, seal serial scan</td></tr>
+        <tr><td class="fn">mobile_scanner</td><td class="fv">^3.5</td><td class="fdesc">Barcode / QR scanner for product EAN-13 and customer QR codes</td></tr>
+        <tr><td class="fn">flutter_nfc_kit</td><td class="fv">^3.4</td><td class="fdesc">NFC read/write — ISO 14443 / ISO 15693 tag polling, NDEF & raw page write, password lock (NTAG 424 DNA, ICODE SLIX2)</td></tr>
+        <tr><td class="fn">ndef</td><td class="fv">^0.4</td><td class="fdesc">NDEF record encode/decode helper used alongside flutter_nfc_kit</td></tr>
+        <tr><td class="fn">supabase_flutter</td><td class="fv">^2.5</td><td class="fdesc">Supabase client — DB queries, Realtime subscriptions, auth JWT</td></tr>
+        <tr><td class="fn">mqtt_client</td><td class="fv">^10.3</td><td class="fdesc">MQTT subscriber for hub gate scan events &amp; truck inventory topics</td></tr>
+        <tr><td class="fn">drift</td><td class="fv">^2.18</td><td class="fdesc">Local SQLite ORM — offline data storage, sync queue</td></tr>
+        <tr><td class="fn">flutter_local_auth</td><td class="fv">^2.2</td><td class="fdesc">Biometric login (fingerprint / face ID)</td></tr>
+        <tr><td class="fn">flutter_secure_storage</td><td class="fv">^9.2</td><td class="fdesc">JWT token &amp; AES key cache in Android Keystore</td></tr>
+        <tr><td class="fn">tflite_flutter</td><td class="fv">^0.10</td><td class="fdesc">On-device TFLite inference — offline vision check</td></tr>
+        <tr><td class="fn">camera</td><td class="fv">^0.11</td><td class="fdesc">Camera feed for OCR, vision check, seal photo</td></tr>
+        <tr><td class="fn">firebase_messaging</td><td class="fv">^15.1</td><td class="fdesc">FCM push notifications — tamper alerts, missing box alerts</td></tr>
+        <tr><td class="fn">mapbox_maps_flutter</td><td class="fv">^2.3</td><td class="fdesc">Truck GPS map view (hub tracking screen)</td></tr>
+        <tr><td class="fn">crypto</td><td class="fv">^3.0</td><td class="fdesc">SHA-256 hashing for manifest hash, photo hash, pin hash</td></tr>
+        <tr><td class="fn">pointycastle</td><td class="fv">^3.8</td><td class="fdesc">AES-128 encryption/decryption for RFID sector key operations</td></tr>
+        <tr><td class="fn">connectivity_plus</td><td class="fv">^6.0</td><td class="fdesc">Network state monitoring — triggers offline sync on reconnect</td></tr>
+      </table>
+    </div>
+  </div>
+</div>
+
+<div class="foot">SMARTDISPATCH · FLUTTER WORKER APP · COMPLETE SCREEN SPECIFICATION · v2.0<br><br>Screens: Login · Home · OCR Scan · Weight Verify · AI Vision · NFC Write · Seal Confirm · Hub Gate · Truck + Return<br>Stack: Flutter 3 · Dart · google_ml_kit · flutter_nfc_kit · NTAG 424 DNA · AES-128 · Supabase · MQTT · Mapbox · Drift</div>
+</div>
+</body>
+</html>
+
+<h2 class="sr-only">Box size selector with safety alerts — choose from 6 box sizes, pack items, and get real-time alerts if the box will break or products will be damaged.</h2>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+.root{border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);overflow:hidden;background:var(--color-background-primary)}
+
+.box-selector{padding:10px 14px;border-bottom:0.5px solid var(--color-border-tertiary);background:var(--color-background-secondary)}
+.bs-label{font-size:11px;color:var(--color-text-secondary);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.bs-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+.bs-card{border:1.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);padding:7px 6px;cursor:pointer;text-align:center;background:var(--color-background-primary);transition:all .12s}
+.bs-card:hover{border-color:var(--color-border-secondary);background:var(--color-background-secondary)}
+.bs-card.active{border-color:#378ADD;background:#E6F1FB}
+.bs-card.active .bs-code{color:#0C447C}
+.bs-card.active .bs-dims{color:#185FA5}
+.bs-code{font-size:12px;font-weight:500;color:var(--color-text-primary);display:block}
+.bs-dims{font-size:10px;color:var(--color-text-secondary);display:block;margin-top:1px}
+.bs-cap{font-size:10px;color:var(--color-text-tertiary);display:block;margin-top:2px}
+.bs-tag{font-size:9px;margin-top:3px;padding:1px 5px;border-radius:3px;display:inline-block}
+.bs-tag.default{background:#EAF3DE;color:#27500A}
+.bs-tag.light{background:#E6F1FB;color:#0C447C}
+.bs-tag.heavy{background:#FAEEDA;color:#633806}
+.bs-tag.xheavy{background:#FCEBEB;color:#791F1F}
+.bs-tag.small{background:#EEEDFE;color:#3C3489}
+.bs-tag.large{background:#FAEEDA;color:#633806}
+
+.top-bar{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:0.5px solid var(--color-border-tertiary)}
+.stat-cell{padding:10px 14px;border-right:0.5px solid var(--color-border-tertiary);background:var(--color-background-secondary)}
+.stat-cell:last-child{border-right:none}
+.stat-lbl{font-size:11px;color:var(--color-text-secondary);margin-bottom:3px}
+.stat-val{font-size:18px;font-weight:500;color:var(--color-text-primary);font-variant-numeric:tabular-nums}
+.stat-val.ok{color:#27500A}.stat-val.warn{color:#633806}.stat-val.danger{color:#791F1F}
+
+.body{display:grid;grid-template-columns:minmax(0,1fr) 210px;min-height:400px}
+.left{border-right:0.5px solid var(--color-border-tertiary);display:flex;flex-direction:column}
+.right{display:flex;flex-direction:column}
+.sec-head{padding:7px 14px;border-bottom:0.5px solid var(--color-border-tertiary);font-size:11px;color:var(--color-text-secondary);display:flex;align-items:center;gap:6px}
+
+.item-list{flex:1;padding:6px 14px}
+.item-row{display:grid;grid-template-columns:22px minmax(0,1fr) 60px 38px;align-items:center;gap:7px;padding:5px 0;border-bottom:0.5px solid var(--color-border-tertiary);cursor:pointer}
+.item-row:last-child{border-bottom:none}
+.item-row:hover{background:var(--color-background-secondary);margin:0 -14px;padding-left:14px;padding-right:14px}
+.chk{width:20px;height:20px;border-radius:50%;border:1.5px solid var(--color-border-secondary);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .12s}
+.chk.done{background:#3B6D11;border-color:#3B6D11;color:#EAF3DE}
+.chk.done i{font-size:11px}
+.iname{font-size:12px;color:var(--color-text-primary);line-height:1.3}
+.iname .sub{font-size:10px;color:var(--color-text-secondary)}
+.risk-pills{display:flex;flex-direction:column;gap:2px;align-items:flex-end}
+.rp{font-size:10px;padding:1px 6px;border-radius:3px;font-weight:500;white-space:nowrap}
+.rp.danger{background:#FCEBEB;color:#791F1F}
+.rp.warn{background:#FAEEDA;color:#633806}
+.rp.info{background:#E6F1FB;color:#0C447C}
+.rp.ok{background:#EAF3DE;color:#27500A}
+.iw{font-size:11px;color:var(--color-text-secondary);text-align:right;font-variant-numeric:tabular-nums}
+
+.alert-panel{flex:1;padding:8px 10px;display:flex;flex-direction:column;gap:5px;overflow:hidden}
+.ac{border-radius:var(--border-radius-md);padding:8px 9px;border-left:3px solid;border-top:0.5px solid var(--color-border-tertiary);border-right:0.5px solid var(--color-border-tertiary);border-bottom:0.5px solid var(--color-border-tertiary)}
+.ac.danger{border-left-color:#E24B4A;background:#FCEBEB}
+.ac.warn{border-left-color:#EF9F27;background:#FAEEDA}
+.ac.info{border-left-color:#378ADD;background:#E6F1FB}
+.ac.ok{border-left-color:#639922;background:#EAF3DE}
+.ac-title{font-size:11px;font-weight:500;display:flex;align-items:center;gap:5px;margin-bottom:2px}
+.ac.danger .ac-title{color:#791F1F}.ac.warn .ac-title{color:#633806}.ac.info .ac-title{color:#0C447C}.ac.ok .ac-title{color:#27500A}
+.ac-body{font-size:11px;line-height:1.4}
+.ac.danger .ac-body{color:#A32D2D}.ac.warn .ac-body{color:#854F0B}.ac.info .ac-body{color:#185FA5}.ac.ok .ac-body{color:#3B6D11}
+
+.box-viz{padding:8px 10px;border-top:0.5px solid var(--color-border-tertiary)}
+.bv-row{display:flex;justify-content:space-between;font-size:11px;color:var(--color-text-secondary);margin-bottom:5px}
+.fill-track{border-radius:3px;overflow:hidden;height:6px;background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);margin-bottom:6px}
+.fill-inner{height:100%;border-radius:3px;transition:width .4s,background .3s}
+.box-outline{border:1.5px solid var(--color-border-primary);border-radius:4px;overflow:hidden;min-height:70px;display:flex;flex-direction:column;justify-content:flex-end;background:var(--color-background-secondary)}
+.blayer{padding:3px 7px;font-size:10px;font-weight:500;display:flex;justify-content:space-between;align-items:center;transition:all .3s;border-top:0.5px solid var(--color-border-tertiary)}
+.blayer.empty-slot{background:transparent;color:var(--color-text-tertiary);height:20px;border-top:0.5px dashed var(--color-border-tertiary)}
+
+.action-row{padding:8px 14px;border-top:0.5px solid var(--color-border-tertiary);display:flex;gap:8px}
+.action-row button{flex:1;font-size:12px;padding:7px 0;cursor:pointer;border-radius:var(--border-radius-md);border:0.5px solid var(--color-border-secondary);background:var(--color-background-primary);color:var(--color-text-primary);transition:background .12s}
+.action-row button:hover{background:var(--color-background-secondary)}
+.action-row button.primary{background:#3B6D11;border-color:#3B6D11;color:#EAF3DE}
+.action-row button.primary:hover{background:#27500A}
+.action-row button.primary:disabled{background:var(--color-background-secondary);border-color:var(--color-border-tertiary);color:var(--color-text-tertiary);cursor:not-allowed}
+
+.suggest-strip{padding:5px 14px;border-top:0.5px solid var(--color-border-tertiary);font-size:11px;color:var(--color-text-secondary);display:flex;align-items:center;gap:6px;background:var(--color-background-secondary)}
+.suggest-strip span{color:var(--color-text-primary);font-weight:500}
+.suggest-strip button{font-size:11px;padding:3px 10px;border-radius:var(--border-radius-md);border:0.5px solid var(--color-border-info);background:var(--color-background-info);color:var(--color-text-info);cursor:pointer}
+</style>
+
+<div class="root">
+
+  <div class="box-selector">
+    <div class="bs-label"><i class="ti ti-package" style="font-size:14px" aria-hidden="true"></i> Select box size</div>
+    <div class="bs-grid" id="bs-grid"></div>
+  </div>
+
+  <div class="top-bar">
+    <div class="stat-cell"><div class="stat-lbl">Box capacity used</div><div class="stat-val" id="s-load">0%</div></div>
+    <div class="stat-cell"><div class="stat-lbl">Total weight</div><div class="stat-val" id="s-weight">— kg</div></div>
+    <div class="stat-cell"><div class="stat-lbl">Vol. used / limit</div><div class="stat-val" id="s-vol">0 / — L</div></div>
+    <div class="stat-cell"><div class="stat-lbl">Alerts</div><div class="stat-val" id="s-alerts">0</div></div>
+  </div>
+
+  <div class="body">
+    <div class="left">
+      <div class="sec-head"><i class="ti ti-list-check" style="font-size:14px" aria-hidden="true"></i> Pack items — tap to add</div>
+      <div class="item-list" id="item-list"></div>
+      <div class="suggest-strip" id="suggest-strip" style="display:none">
+        <i class="ti ti-bulb" style="font-size:14px" aria-hidden="true"></i>
+        Suggested box: <span id="suggest-name">—</span>
+        <button id="suggest-btn">Switch ↗</button>
+      </div>
+      <div class="action-row">
+        <button id="reset-btn">Reset</button>
+        <button class="primary" id="proceed-btn" disabled>Resolve alerts first</button>
+      </div>
+    </div>
+
+    <div class="right">
+      <div class="sec-head"><i class="ti ti-alert-triangle" style="font-size:14px" aria-hidden="true"></i> Packer alerts</div>
+      <div class="alert-panel" id="alert-panel">
+        <div class="ac info">
+          <div class="ac-title"><i class="ti ti-info-circle" style="font-size:13px" aria-hidden="true"></i> Ready</div>
+          <div class="ac-body">Select a box size above, then tap items to pack them.</div>
+        </div>
+      </div>
+      <div class="box-viz">
+        <div class="bv-row"><span id="bv-box-name">No box selected</span><span id="fill-pct-lbl">0%</span></div>
+        <div class="fill-track"><div class="fill-inner" id="fill-inner" style="width:0%;background:#639922"></div></div>
+        <div class="box-outline" id="box-outline"><div class="blayer empty-slot">empty</div></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const BOXES = [
+  {id:'XS', label:'XS', dims:'20×15×10', dimsCm:[20,15,10], maxKg:3,  volL:3.0,  tare:0.35, tag:'small',   tagLabel:'Small'},
+  {id:'S',  label:'S',  dims:'30×20×15', dimsCm:[30,20,15], maxKg:5,  volL:9.0,  tare:0.50, tag:'light',   tagLabel:'Light'},
+  {id:'M',  label:'M',  dims:'40×30×20', dimsCm:[40,30,20], maxKg:10, volL:24.0, tare:0.70, tag:'default', tagLabel:'Default'},
+  {id:'L',  label:'L',  dims:'50×40×30', dimsCm:[50,40,30], maxKg:15, volL:60.0, tare:0.85, tag:'large',   tagLabel:'Large'},
+  {id:'XL', label:'XL', dims:'60×50×40', dimsCm:[60,50,40], maxKg:25, volL:120.0,tare:1.10, tag:'heavy',   tagLabel:'Heavy'},
+  {id:'XXL',label:'XXL',dims:'80×60×50', dimsCm:[80,60,50], maxKg:40, volL:240.0,tare:1.60, tag:'xheavy',  tagLabel:'Bulk'},
+];
+const DEFAULT_BOX = 'M';
+
+const ITEMS = [
+  {id:0,name:'Basmati rice 5 kg',    sub:'heavy · bottom',  w:5.02, volL:6.0, layer:'bottom',fragile:false,crushes:true, leaks:false,glass:false},
+  {id:1,name:'Atta flour 10 kg',     sub:'very heavy · bottom',w:10.10,volL:12.0,layer:'bottom',fragile:false,crushes:true, leaks:false,glass:false},
+  {id:2,name:'Toor dal 2 kg ×2',     sub:'medium · mid',    w:4.06, volL:5.0, layer:'middle',fragile:false,crushes:false,leaks:false,glass:false},
+  {id:3,name:'Coconut oil 1 L',      sub:'liquid · mid',    w:0.92, volL:1.2, layer:'middle',fragile:false,crushes:false,leaks:true, glass:false},
+  {id:4,name:'Biscuit pack ×3',      sub:'fragile · top',   w:0.54, volL:2.5, layer:'top',   fragile:true, crushes:false,leaks:false,glass:false},
+  {id:5,name:'Glass spice jars ×4',  sub:'glass · top',     w:0.62, volL:2.0, layer:'top',   fragile:true, crushes:false,leaks:false,glass:true},
+  {id:6,name:'Tamarind 500 g',       sub:'medium · mid',    w:0.52, volL:0.8, layer:'middle',fragile:false,crushes:false,leaks:false,glass:false},
+  {id:7,name:'Papad rolls ×2',       sub:'crushable · top', w:0.18, volL:1.5, layer:'top',   fragile:true, crushes:true, leaks:false,glass:false},
+];
+
+const LAYER_COLORS={
+  bottom:{bg:'#E6F1FB',color:'#0C447C',lbl:'bottom'},
+  middle:{bg:'#EAF3DE',color:'#27500A',lbl:'mid'},
+  top:{bg:'#EEEDFE',color:'#3C3489',lbl:'top'},
+};
+
+let selectedBox = DEFAULT_BOX;
+let checked = new Set();
+
+function getBox(){ return BOXES.find(b=>b.id===selectedBox); }
+
+function getAlerts(){
+  const box = getBox();
+  const items = ITEMS.filter((_,i)=>checked.has(i));
+  const totalW = box.tare + items.reduce((s,it)=>s+it.w,0);
+  const totalVol = items.reduce((s,it)=>s+it.volL,0);
+  const fragile = items.filter(i=>i.fragile||i.glass);
+  const heavy = items.filter(i=>i.layer==='bottom');
+  const alerts=[];
+
+  if(totalW > box.maxKg){
+    const over=(totalW-box.maxKg).toFixed(2);
+    alerts.push({level:'danger',icon:'ti-alert-octagon',
+      title:`Overweight — box will break`,
+      body:`${totalW.toFixed(2)} kg is ${over} kg over the ${box.label} box limit of ${box.maxKg} kg. Box base will split on loading.`});
+  } else if(totalW > box.maxKg*0.9){
+    alerts.push({level:'warn',icon:'ti-alert-triangle',
+      title:'Near weight limit',
+      body:`${totalW.toFixed(2)} kg — only ${(box.maxKg-totalW).toFixed(2)} kg left. Seams may crack if dropped.`});
+  }
+
+  if(totalVol > box.volL*0.92){
+    alerts.push({level:'warn',icon:'ti-box',
+      title:'Box nearly full — lid may not close',
+      body:`${totalVol.toFixed(1)} L of items in a ${box.volL} L box. Overfilling stops the lid seating on the NFC seal strip.`});
+  }
+
+  if(fragile.length>0 && heavy.length>0){
+    alerts.push({level:'danger',icon:'ti-alert-octagon',
+      title:`Fragile items will be crushed`,
+      body:`${fragile.map(i=>i.name.split(' ').slice(0,2).join(' ')).join(', ')} must be on top. Heavy base items press down during transit.`});
+  } else if(fragile.length>0){
+    alerts.push({level:'warn',icon:'ti-package',
+      title:'Place fragile items last',
+      body:`${fragile.map(i=>i.name.split(' ').slice(0,2).join(' ')).join(', ')} — top layer only, nothing stacked above them.`});
+  }
+
+  const glass=items.filter(i=>i.glass);
+  if(glass.length>0) alerts.push({level:'warn',icon:'ti-package',title:'Glass — wrap before packing',body:'Bubble-wrap each glass jar individually. Unwrapped glass breaks from road vibration.'});
+
+  const leaky=items.filter(i=>i.leaks);
+  if(leaky.length>0) alerts.push({level:'warn',icon:'ti-droplet',title:'Liquid — keep upright',body:'Coconut oil must be cap-side up in mid-layer. Flat = leaks onto other products.'});
+
+  if(box.id==='XS' && items.some(i=>i.w>=2)){
+    alerts.push({level:'danger',icon:'ti-alert-octagon',title:'Items too large for XS box',body:'XS box is for small accessories under 2 kg each. Heavy grocery items need at least a M box.'});
+  }
+  if(box.id==='S' && totalW>4.5){
+    alerts.push({level:'warn',icon:'ti-alert-triangle',title:'S box near limit with groceries',body:`S box holds 5 kg max. You are at ${totalW.toFixed(2)} kg. Consider upgrading to M.`});
+  }
+
+  if(checked.size>0 && heavy.length===0 && items.some(i=>i.layer==='top')){
+    alerts.push({level:'info',icon:'ti-layers-subtract',title:'No base layer item',body:'Add a heavy bottom-layer item first to stabilise the box before fragile items.'});
+  }
+
+  if(alerts.length===0 && checked.size>0){
+    alerts.push({level:'ok',icon:'ti-circle-check',title:'Box is safe to seal',body:`All clear for ${box.label} box. Weight, volume and stacking order are fine.`});
+  }
+  return alerts;
+}
+
+function bestFitBox(){
+  const items=ITEMS.filter((_,i)=>checked.has(i));
+  const totalW=items.reduce((s,it)=>s+it.w,0);
+  const totalVol=items.reduce((s,it)=>s+it.volL,0);
+  for(const b of BOXES){
+    const tw=totalW+b.tare;
+    if(tw<=b.maxKg*0.9 && totalVol<=b.volL*0.88) return b;
+  }
+  return BOXES[BOXES.length-1];
+}
+
+function renderBoxSelector(){
+  const grid=document.getElementById('bs-grid');
+  grid.innerHTML='';
+  BOXES.forEach(b=>{
+    const d=document.createElement('div');
+    d.className='bs-card'+(b.id===selectedBox?' active':'');
+    d.setAttribute('role','radio');
+    d.setAttribute('aria-checked',b.id===selectedBox?'true':'false');
+    d.setAttribute('tabindex','0');
+    const defaultMark=b.id===DEFAULT_BOX?` <span class="bs-tag default">default</span>`:'';
+    d.innerHTML=`<span class="bs-code">${b.label}</span><span class="bs-dims">${b.dims} cm</span><span class="bs-cap">${b.maxKg} kg · ${b.volL} L</span><span class="bs-tag ${b.tag}">${b.tagLabel}</span>${defaultMark}`;
+    const sel=()=>{ selectedBox=b.id; renderBoxSelector(); update(); };
+    d.addEventListener('click',sel);
+    d.addEventListener('keydown',e=>{ if(e.key===' '||e.key==='Enter'){e.preventDefault();sel();} });
+    grid.appendChild(d);
+  });
+}
+
+function renderItems(){
+  const list=document.getElementById('item-list');
+  list.innerHTML='';
+  ITEMS.forEach((item,idx)=>{
+    const done=checked.has(idx);
+    const row=document.createElement('div');
+    row.className='item-row';
+    row.setAttribute('role','checkbox');
+    row.setAttribute('aria-checked',done?'true':'false');
+    row.setAttribute('tabindex','0');
+    const pills=[];
+    if(item.fragile) pills.push({c:'danger',l:'fragile'});
+    if(item.glass)   pills.push({c:'danger',l:'glass'});
+    if(item.leaks)   pills.push({c:'warn',  l:'liquid'});
+    if(item.crushes&&item.layer!=='bottom') pills.push({c:'warn',l:'crushable'});
+    if(item.layer==='bottom') pills.push({c:'info',l:'base'});
+    const pillsHtml=pills.slice(0,2).map(p=>`<span class="rp ${p.c}">${p.l}</span>`).join('');
+    row.innerHTML=`
+      <div class="chk ${done?'done':''}">
+        ${done?'<i class="ti ti-check" aria-hidden="true"></i>':''}
+      </div>
+      <div class="iname">${item.name}<span class="sub">${item.sub}</span></div>
+      <div class="risk-pills">${pillsHtml}</div>
+      <div class="iw">${item.w.toFixed(2)}</div>
+    `;
+    const toggle=()=>{ checked.has(idx)?checked.delete(idx):checked.add(idx); update(); };
+    row.addEventListener('click',toggle);
+    row.addEventListener('keydown',e=>{ if(e.key===' '||e.key==='Enter'){e.preventDefault();toggle();} });
+    list.appendChild(row);
+  });
+}
+
+function renderBox(){
+  const outline=document.getElementById('box-outline');
+  outline.innerHTML='';
+  const order=['bottom','middle','top'];
+  let any=false;
+  order.forEach(layer=>{
+    ITEMS.forEach((item,idx)=>{
+      if(item.layer!==layer||!checked.has(idx)) return;
+      any=true;
+      const d=document.createElement('div');
+      d.className='blayer';
+      const lc=LAYER_COLORS[layer];
+      d.style.background=lc.bg;
+      d.style.color=lc.color;
+      d.innerHTML=`<span>${item.name.split(' ').slice(0,3).join(' ')}</span><span style="opacity:.7">${lc.lbl} · ${item.w.toFixed(2)} kg</span>`;
+      outline.appendChild(d);
+    });
+  });
+  if(!any){ const d=document.createElement('div');d.className='blayer empty-slot';d.textContent='empty';outline.appendChild(d); }
+}
+
+function update(){
+  renderItems();
+  renderBox();
+  const box=getBox();
+  const items=ITEMS.filter((_,i)=>checked.has(i));
+  const totalW=box.tare+items.reduce((s,it)=>s+it.w,0);
+  const totalVol=items.reduce((s,it)=>s+it.volL,0);
+  const loadPct=Math.min(999,Math.round((totalW/box.maxKg)*100));
+  const volPct=Math.min(100,Math.round((totalVol/box.volL)*100));
+  const alerts=getAlerts();
+  const dangers=alerts.filter(a=>a.level==='danger').length;
+  const warns=alerts.filter(a=>a.level==='warn').length;
+
+  const lEl=document.getElementById('s-load');
+  lEl.textContent=loadPct+'%';
+  lEl.className='stat-val'+(loadPct>100?' danger':loadPct>90?' warn':checked.size>0?' ok':'');
+
+  const wEl=document.getElementById('s-weight');
+  wEl.textContent=totalW.toFixed(2)+' kg';
+  wEl.className='stat-val'+(totalW>box.maxKg?' danger':totalW>box.maxKg*.9?' warn':checked.size>0?' ok':'');
+
+  document.getElementById('s-vol').textContent=totalVol.toFixed(1)+' / '+box.volL+' L';
+
+  const aEl=document.getElementById('s-alerts');
+  aEl.textContent=alerts.filter(a=>a.level!=='ok'&&a.level!=='info').length;
+  aEl.className='stat-val'+(dangers>0?' danger':warns>0?' warn':' ok');
+
+  const fillPct=Math.min(100,loadPct);
+  const fi=document.getElementById('fill-inner');
+  fi.style.width=fillPct+'%';
+  fi.style.background=loadPct>100?'#E24B4A':loadPct>90?'#EF9F27':'#639922';
+  document.getElementById('fill-pct-lbl').textContent=loadPct+'%';
+  document.getElementById('bv-box-name').textContent=`${box.label} box · ${box.maxKg} kg max`;
+
+  const panel=document.getElementById('alert-panel');
+  panel.innerHTML='';
+  if(checked.size===0){
+    panel.innerHTML='<div class="ac info"><div class="ac-title"><i class="ti ti-info-circle" style="font-size:13px" aria-hidden="true"></i> Ready</div><div class="ac-body">Tap items to pack them. Alerts appear as you go.</div></div>';
+  } else {
+    alerts.forEach(a=>{
+      const d=document.createElement('div');
+      d.className=`ac ${a.level}`;
+      d.innerHTML=`<div class="ac-title"><i class="ti ${a.icon}" style="font-size:13px" aria-hidden="true"></i> ${a.title}</div><div class="ac-body">${a.body}</div>`;
+      panel.appendChild(d);
+    });
+  }
+
+  const best=checked.size>0?bestFitBox():null;
+  const ss=document.getElementById('suggest-strip');
+  const sn=document.getElementById('suggest-name');
+  if(best && best.id!==selectedBox && checked.size>0){
+    ss.style.display='flex';
+    sn.textContent=best.label+' ('+best.maxKg+' kg · '+best.volL+' L)';
+    document.getElementById('suggest-btn').onclick=()=>{ selectedBox=best.id; renderBoxSelector(); update(); };
+  } else {
+    ss.style.display='none';
+  }
+
+  const btn=document.getElementById('proceed-btn');
+  const ok=checked.size>0&&dangers===0;
+  btn.disabled=!ok;
+  btn.className='primary'+(ok?'':' ');
+  btn.textContent=ok?'Proceed to NFC write ↗':'Resolve alerts first';
+  if(ok){
+    btn.onclick=()=>sendPrompt('Box packed safely in '+box.label+' box ('+totalW.toFixed(2)+' kg of '+box.maxKg+' kg). Walk me through the NFC write step.');
+  }
+}
+
+renderBoxSelector();
+update();
+document.getElementById('reset-btn').addEventListener('click',()=>{ checked.clear(); update(); });
+</script>
+
