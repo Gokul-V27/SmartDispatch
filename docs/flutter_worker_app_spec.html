@@ -1,0 +1,888 @@
+<![CDATA[<h2 class="sr-only">Box size selector with safety alerts — choose from 6 box sizes, pack items, and get real-time alerts if the box will break or products will be damaged.</h2>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+.root{border:0.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-lg);overflow:hidden;background:var(--color-background-primary)}
+
+.box-selector{padding:10px 14px;border-bottom:0.5px solid var(--color-border-tertiary);background:var(--color-background-secondary)}
+.bs-label{font-size:11px;color:var(--color-text-secondary);margin-bottom:8px;display:flex;align-items:center;gap:6px}
+.bs-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:6px}
+.bs-card{border:1.5px solid var(--color-border-tertiary);border-radius:var(--border-radius-md);padding:7px 6px;cursor:pointer;text-align:center;background:var(--color-background-primary);transition:all .12s}
+.bs-card:hover{border-color:var(--color-border-secondary);background:var(--color-background-secondary)}
+.bs-card.active{border-color:#378ADD;background:#E6F1FB}
+.bs-card.active .bs-code{color:#0C447C}
+.bs-card.active .bs-dims{color:#185FA5}
+.bs-code{font-size:12px;font-weight:500;color:var(--color-text-primary);display:block}
+.bs-dims{font-size:10px;color:var(--color-text-secondary);display:block;margin-top:1px}
+.bs-cap{font-size:10px;color:var(--color-text-tertiary);display:block;margin-top:2px}
+.bs-tag{font-size:9px;margin-top:3px;padding:1px 5px;border-radius:3px;display:inline-block}
+.bs-tag.default{background:#EAF3DE;color:#27500A}
+.bs-tag.light{background:#E6F1FB;color:#0C447C}
+.bs-tag.heavy{background:#FAEEDA;color:#633806}
+.bs-tag.xheavy{background:#FCEBEB;color:#791F1F}
+.bs-tag.small{background:#EEEDFE;color:#3C3489}
+.bs-tag.large{background:#FAEEDA;color:#633806}
+
+.top-bar{display:grid;grid-template-columns:repeat(4,1fr);border-bottom:0.5px solid var(--color-border-tertiary)}
+.stat-cell{padding:10px 14px;border-right:0.5px solid var(--color-border-tertiary);background:var(--color-background-secondary)}
+.stat-cell:last-child{border-right:none}
+.stat-lbl{font-size:11px;color:var(--color-text-secondary);margin-bottom:3px}
+.stat-val{font-size:18px;font-weight:500;color:var(--color-text-primary);font-variant-numeric:tabular-nums}
+.stat-val.ok{color:#27500A}.stat-val.warn{color:#633806}.stat-val.danger{color:#791F1F}
+
+.body{display:grid;grid-template-columns:minmax(0,1fr) 210px;min-height:400px}
+.left{border-right:0.5px solid var(--color-border-tertiary);display:flex;flex-direction:column}
+.right{display:flex;flex-direction:column}
+.sec-head{padding:7px 14px;border-bottom:0.5px solid var(--color-border-tertiary);font-size:11px;color:var(--color-text-secondary);display:flex;align-items:center;gap:6px}
+
+.item-list{flex:1;padding:6px 14px}
+.item-row{display:grid;grid-template-columns:22px minmax(0,1fr) 60px 38px;align-items:center;gap:7px;padding:5px 0;border-bottom:0.5px solid var(--color-border-tertiary);cursor:pointer}
+.item-row:last-child{border-bottom:none}
+.item-row:hover{background:var(--color-background-secondary);margin:0 -14px;padding-left:14px;padding-right:14px}
+.chk{width:20px;height:20px;border-radius:50%;border:1.5px solid var(--color-border-secondary);display:flex;align-items:center;justify-content:center;flex-shrink:0;transition:all .12s}
+.chk.done{background:#3B6D11;border-color:#3B6D11;color:#EAF3DE}
+.chk.done i{font-size:11px}
+.iname{font-size:12px;color:var(--color-text-primary);line-height:1.3}
+.iname .sub{font-size:10px;color:var(--color-text-secondary)}
+.risk-pills{display:flex;flex-direction:column;gap:2px;align-items:flex-end}
+.rp{font-size:10px;padding:1px 6px;border-radius:3px;font-weight:500;white-space:nowrap}
+.rp.danger{background:#FCEBEB;color:#791F1F}
+.rp.warn{background:#FAEEDA;color:#633806}
+.rp.info{background:#E6F1FB;color:#0C447C}
+.rp.ok{background:#EAF3DE;color:#27500A}
+.iw{font-size:11px;color:var(--color-text-secondary);text-align:right;font-variant-numeric:tabular-nums}
+
+.alert-panel{flex:1;padding:8px 10px;display:flex;flex-direction:column;gap:5px;overflow:hidden}
+.ac{border-radius:var(--border-radius-md);padding:8px 9px;border-left:3px solid;border-top:0.5px solid var(--color-border-tertiary);border-right:0.5px solid var(--color-border-tertiary);border-bottom:0.5px solid var(--color-border-tertiary)}
+.ac.danger{border-left-color:#E24B4A;background:#FCEBEB}
+.ac.warn{border-left-color:#EF9F27;background:#FAEEDA}
+.ac.info{border-left-color:#378ADD;background:#E6F1FB}
+.ac.ok{border-left-color:#639922;background:#EAF3DE}
+.ac-title{font-size:11px;font-weight:500;display:flex;align-items:center;gap:5px;margin-bottom:2px}
+.ac.danger .ac-title{color:#791F1F}.ac.warn .ac-title{color:#633806}.ac.info .ac-title{color:#0C447C}.ac.ok .ac-title{color:#27500A}
+.ac-body{font-size:11px;line-height:1.4}
+.ac.danger .ac-body{color:#A32D2D}.ac.warn .ac-body{color:#854F0B}.ac.info .ac-body{color:#185FA5}.ac.ok .ac-body{color:#3B6D11}
+
+.box-viz{padding:8px 10px;border-top:0.5px solid var(--color-border-tertiary)}
+.bv-row{display:flex;justify-content:space-between;font-size:11px;color:var(--color-text-secondary);margin-bottom:5px}
+.fill-track{border-radius:3px;overflow:hidden;height:6px;background:var(--color-background-secondary);border:0.5px solid var(--color-border-tertiary);margin-bottom:6px}
+.fill-inner{height:100%;border-radius:3px;transition:width .4s,background .3s}
+.box-outline{border:1.5px solid var(--color-border-primary);border-radius:4px;overflow:hidden;min-height:70px;display:flex;flex-direction:column;justify-content:flex-end;background:var(--color-background-secondary)}
+.blayer{padding:3px 7px;font-size:10px;font-weight:500;display:flex;justify-content:space-between;align-items:center;transition:all .3s;border-top:0.5px solid var(--color-border-tertiary)}
+.blayer.empty-slot{background:transparent;color:var(--color-text-tertiary);height:20px;border-top:0.5px dashed var(--color-border-tertiary)}
+
+.action-row{padding:8px 14px;border-top:0.5px solid var(--color-border-tertiary);display:flex;gap:8px}
+.action-row button{flex:1;font-size:12px;padding:7px 0;cursor:pointer;border-radius:var(--border-radius-md);border:0.5px solid var(--color-border-secondary);background:var(--color-background-primary);color:var(--color-text-primary);transition:background .12s}
+.action-row button:hover{background:var(--color-background-secondary)}
+.action-row button.primary{background:#3B6D11;border-color:#3B6D11;color:#EAF3DE}
+.action-row button.primary:hover{background:#27500A}
+.action-row button.primary:disabled{background:var(--color-background-secondary);border-color:var(--color-border-tertiary);color:var(--color-text-tertiary);cursor:not-allowed}
+
+.suggest-strip{padding:5px 14px;border-top:0.5px solid var(--color-border-tertiary);font-size:11px;color:var(--color-text-secondary);display:flex;align-items:center;gap:6px;background:var(--color-background-secondary)}
+.suggest-strip span{color:var(--color-text-primary);font-weight:500}
+.suggest-strip button{font-size:11px;padding:3px 10px;border-radius:var(--border-radius-md);border:0.5px solid var(--color-border-info);background:var(--color-background-info);color:var(--color-text-info);cursor:pointer}
+</style>
+
+<div class="root">
+
+  <div class="box-selector">
+    <div class="bs-label"><i class="ti ti-package" style="font-size:14px" aria-hidden="true"></i> Select box size</div>
+    <div class="bs-grid" id="bs-grid"></div>
+  </div>
+
+  <div class="top-bar">
+    <div class="stat-cell"><div class="stat-lbl">Box capacity used</div><div class="stat-val" id="s-load">0%</div></div>
+    <div class="stat-cell"><div class="stat-lbl">Total weight</div><div class="stat-val" id="s-weight">— kg</div></div>
+    <div class="stat-cell"><div class="stat-lbl">Vol. used / limit</div><div class="stat-val" id="s-vol">0 / — L</div></div>
+    <div class="stat-cell"><div class="stat-lbl">Alerts</div><div class="stat-val" id="s-alerts">0</div></div>
+  </div>
+
+  <div class="body">
+    <div class="left">
+      <div class="sec-head"><i class="ti ti-list-check" style="font-size:14px" aria-hidden="true"></i> Pack items — tap to add</div>
+      <div class="item-list" id="item-list"></div>
+      <div class="suggest-strip" id="suggest-strip" style="display:none">
+        <i class="ti ti-bulb" style="font-size:14px" aria-hidden="true"></i>
+        Suggested box: <span id="suggest-name">—</span>
+        <button id="suggest-btn">Switch ↗</button>
+      </div>
+      <div class="action-row">
+        <button id="reset-btn">Reset</button>
+        <button class="primary" id="proceed-btn" disabled>Resolve alerts first</button>
+      </div>
+    </div>
+
+    <div class="right">
+      <div class="sec-head"><i class="ti ti-alert-triangle" style="font-size:14px" aria-hidden="true"></i> Packer alerts</div>
+      <div class="alert-panel" id="alert-panel">
+        <div class="ac info">
+          <div class="ac-title"><i class="ti ti-info-circle" style="font-size:13px" aria-hidden="true"></i> Ready</div>
+          <div class="ac-body">Select a box size above, then tap items to pack them.</div>
+        </div>
+      </div>
+      <div class="box-viz">
+        <div class="bv-row"><span id="bv-box-name">No box selected</span><span id="fill-pct-lbl">0%</span></div>
+        <div class="fill-track"><div class="fill-inner" id="fill-inner" style="width:0%;background:#639922"></div></div>
+        <div class="box-outline" id="box-outline"><div class="blayer empty-slot">empty</div></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+const BOXES = [
+  {id:'XS', label:'XS', dims:'20×15×10', dimsCm:[20,15,10], maxKg:3,  volL:3.0,  tare:0.35, tag:'small',   tagLabel:'Small'},
+  {id:'S',  label:'S',  dims:'30×20×15', dimsCm:[30,20,15], maxKg:5,  volL:9.0,  tare:0.50, tag:'light',   tagLabel:'Light'},
+  {id:'M',  label:'M',  dims:'40×30×20', dimsCm:[40,30,20], maxKg:10, volL:24.0, tare:0.70, tag:'default', tagLabel:'Default'},
+  {id:'L',  label:'L',  dims:'50×40×30', dimsCm:[50,40,30], maxKg:15, volL:60.0, tare:0.85, tag:'large',   tagLabel:'Large'},
+  {id:'XL', label:'XL', dims:'60×50×40', dimsCm:[60,50,40], maxKg:25, volL:120.0,tare:1.10, tag:'heavy',   tagLabel:'Heavy'},
+  {id:'XXL',label:'XXL',dims:'80×60×50', dimsCm:[80,60,50], maxKg:40, volL:240.0,tare:1.60, tag:'xheavy',  tagLabel:'Bulk'},
+];
+const DEFAULT_BOX = 'M';
+
+const ITEMS = [
+  {id:0,name:'Basmati rice 5 kg',    sub:'heavy · bottom',  w:5.02, volL:6.0, layer:'bottom',fragile:false,crushes:true, leaks:false,glass:false},
+  {id:1,name:'Atta flour 10 kg',     sub:'very heavy · bottom',w:10.10,volL:12.0,layer:'bottom',fragile:false,crushes:true, leaks:false,glass:false},
+  {id:2,name:'Toor dal 2 kg ×2',     sub:'medium · mid',    w:4.06, volL:5.0, layer:'middle',fragile:false,crushes:false,leaks:false,glass:false},
+  {id:3,name:'Coconut oil 1 L',      sub:'liquid · mid',    w:0.92, volL:1.2, layer:'middle',fragile:false,crushes:false,leaks:true, glass:false},
+  {id:4,name:'Biscuit pack ×3',      sub:'fragile · top',   w:0.54, volL:2.5, layer:'top',   fragile:true, crushes:false,leaks:false,glass:false},
+  {id:5,name:'Glass spice jars ×4',  sub:'glass · top',     w:0.62, volL:2.0, layer:'top',   fragile:true, crushes:false,leaks:false,glass:true},
+  {id:6,name:'Tamarind 500 g',       sub:'medium · mid',    w:0.52, volL:0.8, layer:'middle',fragile:false,crushes:false,leaks:false,glass:false},
+  {id:7,name:'Papad rolls ×2',       sub:'crushable · top', w:0.18, volL:1.5, layer:'top',   fragile:true, crushes:true, leaks:false,glass:false},
+];
+
+const LAYER_COLORS={
+  bottom:{bg:'#E6F1FB',color:'#0C447C',lbl:'bottom'},
+  middle:{bg:'#EAF3DE',color:'#27500A',lbl:'mid'},
+  top:{bg:'#EEEDFE',color:'#3C3489',lbl:'top'},
+};
+
+let selectedBox = DEFAULT_BOX;
+let checked = new Set();
+
+function getBox(){ return BOXES.find(b=>b.id===selectedBox); }
+
+function getAlerts(){
+  const box = getBox();
+  const items = ITEMS.filter((_,i)=>checked.has(i));
+  const totalW = box.tare + items.reduce((s,it)=>s+it.w,0);
+  const totalVol = items.reduce((s,it)=>s+it.volL,0);
+  const fragile = items.filter(i=>i.fragile||i.glass);
+  const heavy = items.filter(i=>i.layer==='bottom');
+  const alerts=[];
+
+  if(totalW > box.maxKg){
+    const over=(totalW-box.maxKg).toFixed(2);
+    alerts.push({level:'danger',icon:'ti-alert-octagon',
+      title:`Overweight — box will break`,
+      body:`${totalW.toFixed(2)} kg is ${over} kg over the ${box.label} box limit of ${box.maxKg} kg. Box base will split on loading.`});
+  } else if(totalW > box.maxKg*0.9){
+    alerts.push({level:'warn',icon:'ti-alert-triangle',
+      title:'Near weight limit',
+      body:`${totalW.toFixed(2)} kg — only ${(box.maxKg-totalW).toFixed(2)} kg left. Seams may crack if dropped.`});
+  }
+
+  if(totalVol > box.volL*0.92){
+    alerts.push({level:'warn',icon:'ti-box',
+      title:'Box nearly full — lid may not close',
+      body:`${totalVol.toFixed(1)} L of items in a ${box.volL} L box. Overfilling stops the lid seating on the NFC seal strip.`});
+  }
+
+  if(fragile.length>0 && heavy.length>0){
+    alerts.push({level:'danger',icon:'ti-alert-octagon',
+      title:`Fragile items will be crushed`,
+      body:`${fragile.map(i=>i.name.split(' ').slice(0,2).join(' ')).join(', ')} must be on top. Heavy base items press down during transit.`});
+  } else if(fragile.length>0){
+    alerts.push({level:'warn',icon:'ti-package',
+      title:'Place fragile items last',
+      body:`${fragile.map(i=>i.name.split(' ').slice(0,2).join(' ')).join(', ')} — top layer only, nothing stacked above them.`});
+  }
+
+  const glass=items.filter(i=>i.glass);
+  if(glass.length>0) alerts.push({level:'warn',icon:'ti-package',title:'Glass — wrap before packing',body:'Bubble-wrap each glass jar individually. Unwrapped glass breaks from road vibration.'});
+
+  const leaky=items.filter(i=>i.leaks);
+  if(leaky.length>0) alerts.push({level:'warn',icon:'ti-droplet',title:'Liquid — keep upright',body:'Coconut oil must be cap-side up in mid-layer. Flat = leaks onto other products.'});
+
+  if(box.id==='XS' && items.some(i=>i.w>=2)){
+    alerts.push({level:'danger',icon:'ti-alert-octagon',title:'Items too large for XS box',body:'XS box is for small accessories under 2 kg each. Heavy grocery items need at least a M box.'});
+  }
+  if(box.id==='S' && totalW>4.5){
+    alerts.push({level:'warn',icon:'ti-alert-triangle',title:'S box near limit with groceries',body:`S box holds 5 kg max. You are at ${totalW.toFixed(2)} kg. Consider upgrading to M.`});
+  }
+
+  if(checked.size>0 && heavy.length===0 && items.some(i=>i.layer==='top')){
+    alerts.push({level:'info',icon:'ti-layers-subtract',title:'No base layer item',body:'Add a heavy bottom-layer item first to stabilise the box before fragile items.'});
+  }
+
+  if(alerts.length===0 && checked.size>0){
+    alerts.push({level:'ok',icon:'ti-circle-check',title:'Box is safe to seal',body:`All clear for ${box.label} box. Weight, volume and stacking order are fine.`});
+  }
+  return alerts;
+}
+
+function bestFitBox(){
+  const items=ITEMS.filter((_,i)=>checked.has(i));
+  const totalW=items.reduce((s,it)=>s+it.w,0);
+  const totalVol=items.reduce((s,it)=>s+it.volL,0);
+  for(const b of BOXES){
+    const tw=totalW+b.tare;
+    if(tw<=b.maxKg*0.9 && totalVol<=b.volL*0.88) return b;
+  }
+  return BOXES[BOXES.length-1];
+}
+
+function renderBoxSelector(){
+  const grid=document.getElementById('bs-grid');
+  grid.innerHTML='';
+  BOXES.forEach(b=>{
+    const d=document.createElement('div');
+    d.className='bs-card'+(b.id===selectedBox?' active':'');
+    d.setAttribute('role','radio');
+    d.setAttribute('aria-checked',b.id===selectedBox?'true':'false');
+    d.setAttribute('tabindex','0');
+    const defaultMark=b.id===DEFAULT_BOX?` <span class="bs-tag default">default</span>`:'';
+    d.innerHTML=`<span class="bs-code">${b.label}</span><span class="bs-dims">${b.dims} cm</span><span class="bs-cap">${b.maxKg} kg · ${b.volL} L</span><span class="bs-tag ${b.tag}">${b.tagLabel}</span>${defaultMark}`;
+    const sel=()=>{ selectedBox=b.id; renderBoxSelector(); update(); };
+    d.addEventListener('click',sel);
+    d.addEventListener('keydown',e=>{ if(e.key===' '||e.key==='Enter'){e.preventDefault();sel();} });
+    grid.appendChild(d);
+  });
+}
+
+function renderItems(){
+  const list=document.getElementById('item-list');
+  list.innerHTML='';
+  ITEMS.forEach((item,idx)=>{
+    const done=checked.has(idx);
+    const row=document.createElement('div');
+    row.className='item-row';
+    row.setAttribute('role','checkbox');
+    row.setAttribute('aria-checked',done?'true':'false');
+    row.setAttribute('tabindex','0');
+    const pills=[];
+    if(item.fragile) pills.push({c:'danger',l:'fragile'});
+    if(item.glass)   pills.push({c:'danger',l:'glass'});
+    if(item.leaks)   pills.push({c:'warn',  l:'liquid'});
+    if(item.crushes&&item.layer!=='bottom') pills.push({c:'warn',l:'crushable'});
+    if(item.layer==='bottom') pills.push({c:'info',l:'base'});
+    const pillsHtml=pills.slice(0,2).map(p=>`<span class="rp ${p.c}">${p.l}</span>`).join('');
+    row.innerHTML=`
+      <div class="chk ${done?'done':''}">
+        ${done?'<i class="ti ti-check" aria-hidden="true"></i>':''}
+      </div>
+      <div class="iname">${item.name}<span class="sub">${item.sub}</span></div>
+      <div class="risk-pills">${pillsHtml}</div>
+      <div class="iw">${item.w.toFixed(2)}</div>
+    `;
+    const toggle=()=>{ checked.has(idx)?checked.delete(idx):checked.add(idx); update(); };
+    row.addEventListener('click',toggle);
+    row.addEventListener('keydown',e=>{ if(e.key===' '||e.key==='Enter'){e.preventDefault();toggle();} });
+    list.appendChild(row);
+  });
+}
+
+function renderBox(){
+  const outline=document.getElementById('box-outline');
+  outline.innerHTML='';
+  const order=['bottom','middle','top'];
+  let any=false;
+  order.forEach(layer=>{
+    ITEMS.forEach((item,idx)=>{
+      if(item.layer!==layer||!checked.has(idx)) return;
+      any=true;
+      const d=document.createElement('div');
+      d.className='blayer';
+      const lc=LAYER_COLORS[layer];
+      d.style.background=lc.bg;
+      d.style.color=lc.color;
+      d.innerHTML=`<span>${item.name.split(' ').slice(0,3).join(' ')}</span><span style="opacity:.7">${lc.lbl} · ${item.w.toFixed(2)} kg</span>`;
+      outline.appendChild(d);
+    });
+  });
+  if(!any){ const d=document.createElement('div');d.className='blayer empty-slot';d.textContent='empty';outline.appendChild(d); }
+}
+
+function update(){
+  renderItems();
+  renderBox();
+  const box=getBox();
+  const items=ITEMS.filter((_,i)=>checked.has(i));
+  const totalW=box.tare+items.reduce((s,it)=>s+it.w,0);
+  const totalVol=items.reduce((s,it)=>s+it.volL,0);
+  const loadPct=Math.min(999,Math.round((totalW/box.maxKg)*100));
+  const volPct=Math.min(100,Math.round((totalVol/box.volL)*100));
+  const alerts=getAlerts();
+  const dangers=alerts.filter(a=>a.level==='danger').length;
+  const warns=alerts.filter(a=>a.level==='warn').length;
+
+  const lEl=document.getElementById('s-load');
+  lEl.textContent=loadPct+'%';
+  lEl.className='stat-val'+(loadPct>100?' danger':loadPct>90?' warn':checked.size>0?' ok':'');
+
+  const wEl=document.getElementById('s-weight');
+  wEl.textContent=totalW.toFixed(2)+' kg';
+  wEl.className='stat-val'+(totalW>box.maxKg?' danger':totalW>box.maxKg*.9?' warn':checked.size>0?' ok':'');
+
+  document.getElementById('s-vol').textContent=totalVol.toFixed(1)+' / '+box.volL+' L';
+
+  const aEl=document.getElementById('s-alerts');
+  aEl.textContent=alerts.filter(a=>a.level!=='ok'&&a.level!=='info').length;
+  aEl.className='stat-val'+(dangers>0?' danger':warns>0?' warn':' ok');
+
+  const fillPct=Math.min(100,loadPct);
+  const fi=document.getElementById('fill-inner');
+  fi.style.width=fillPct+'%';
+  fi.style.background=loadPct>100?'#E24B4A':loadPct>90?'#EF9F27':'#639922';
+  document.getElementById('fill-pct-lbl').textContent=loadPct+'%';
+  document.getElementById('bv-box-name').textContent=`${box.label} box · ${box.maxKg} kg max`;
+
+  const panel=document.getElementById('alert-panel');
+  panel.innerHTML='';
+  if(checked.size===0){
+    panel.innerHTML='<div class="ac info"><div class="ac-title"><i class="ti ti-info-circle" style="font-size:13px" aria-hidden="true"></i> Ready</div><div class="ac-body">Tap items to pack them. Alerts appear as you go.</div></div>';
+  } else {
+    alerts.forEach(a=>{
+      const d=document.createElement('div');
+      d.className=`ac ${a.level}`;
+      d.innerHTML=`<div class="ac-title"><i class="ti ${a.icon}" style="font-size:13px" aria-hidden="true"></i> ${a.title}</div><div class="ac-body">${a.body}</div>`;
+      panel.appendChild(d);
+    });
+  }
+
+  const best=checked.size>0?bestFitBox():null;
+  const ss=document.getElementById('suggest-strip');
+  const sn=document.getElementById('suggest-name');
+  if(best && best.id!==selectedBox && checked.size>0){
+    ss.style.display='flex';
+    sn.textContent=best.label+' ('+best.maxKg+' kg · '+best.volL+' L)';
+    document.getElementById('suggest-btn').onclick=()=>{ selectedBox=best.id; renderBoxSelector(); update(); };
+  } else {
+    ss.style.display='none';
+  }
+
+  const btn=document.getElementById('proceed-btn');
+  const ok=checked.size>0&&dangers===0;
+  btn.disabled=!ok;
+  btn.className='primary'+(ok?'':' ');
+  btn.textContent=ok?'Proceed to NFC write ↗':'Resolve alerts first';
+  if(ok){
+    btn.onclick=()=>sendPrompt('Box packed safely in '+box.label+' box ('+totalW.toFixed(2)+' kg of '+box.maxKg+' kg). Walk me through the NFC write step.');
+  }
+}
+
+renderBoxSelector();
+update();
+document.getElementById('reset-btn').addEventListener('click',()=>{ checked.clear(); update(); });
+</script>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>SmartDispatch — Flutter Worker App Specification</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Syne:wght@400;600;700;800&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#04080f;
+  --surf:#080e1c;
+  --surf2:#0c1425;
+  --surf3:#101b30;
+  --border:#152035;
+  --border2:#1c2d47;
+  --or:#f97316;--or-d:rgba(249,115,22,.12);--or-g:rgba(249,115,22,.06);
+  --bl:#38bdf8;--bl-d:rgba(56,189,248,.12);--bl-g:rgba(56,189,248,.06);
+  --gn:#22d3a0;--gn-d:rgba(34,211,160,.10);--gn-g:rgba(34,211,160,.05);
+  --yw:#f59e0b;--yw-d:rgba(245,158,11,.10);
+  --rd:#ef4444;--rd-d:rgba(239,68,68,.10);
+  --pu:#a78bfa;--pu-d:rgba(167,139,250,.10);
+  --pk:#f472b6;--pk-d:rgba(244,114,182,.10);
+  --tx:#cdd8e8;--mt:#4a6380;--dim:#2a3f58;
+  --mono:'JetBrains Mono',monospace;
+  --sans:'Syne',sans-serif;
+}
+html{scroll-behavior:smooth}
+body{background:var(--bg);color:var(--tx);font-family:var(--sans);padding:0;margin:0;font-size:13px;line-height:1.6}
+
+/* ── NOISE TEXTURE ── */
+body::before{content:'';position:fixed;inset:0;background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");pointer-events:none;z-index:0;opacity:.4}
+.wrap{position:relative;z-index:1;max-width:1100px;margin:0 auto;padding:40px 24px 80px}
+
+/* ── HEADER ── */
+.hdr{position:relative;padding:56px 40px 48px;background:linear-gradient(135deg,var(--surf) 0%,var(--surf2) 100%);border:1px solid var(--border2);margin-bottom:40px;overflow:hidden}
+.hdr::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,transparent,var(--or),var(--bl),var(--gn),transparent)}
+.hdr::after{content:'';position:absolute;bottom:-80px;right:-80px;width:300px;height:300px;background:radial-gradient(circle,rgba(249,115,22,.06) 0%,transparent 70%);pointer-events:none}
+.hdr-eyebrow{font-family:var(--mono);font-size:10px;letter-spacing:4px;color:var(--or);text-transform:uppercase;margin-bottom:16px;display:flex;align-items:center;gap:10px}
+.hdr-eyebrow::before{content:'';width:24px;height:1px;background:var(--or)}
+.hdr-title{font-family:var(--sans);font-size:52px;font-weight:800;color:#fff;letter-spacing:-2px;line-height:1;margin-bottom:10px}
+.hdr-title .acc{color:var(--or)}
+.hdr-subtitle{font-size:16px;color:var(--mt);max-width:640px;line-height:1.7;margin-bottom:28px;font-weight:400}
+.hdr-tags{display:flex;flex-wrap:wrap;gap:8px}
+.htag{font-family:var(--mono);font-size:10px;padding:4px 12px;border:1px solid var(--border2);color:var(--mt);letter-spacing:1px}
+.htag.hi{border-color:var(--or);color:var(--or);background:var(--or-g)}
+
+/* ── SECTION HEADER ── */
+.sec-hdr{display:flex;align-items:center;gap:16px;margin:48px 0 24px}
+.sec-num{font-family:var(--mono);font-size:11px;color:var(--or);letter-spacing:2px;background:var(--or-g);border:1px solid var(--or);padding:3px 10px;flex-shrink:0}
+.sec-title{font-family:var(--sans);font-size:22px;font-weight:700;color:#fff;letter-spacing:-0.5px}
+.sec-line{flex:1;height:1px;background:linear-gradient(90deg,var(--border2),transparent)}
+
+/* ── SCREEN CARD ── */
+.screen-card{background:var(--surf);border:1px solid var(--border2);margin-bottom:20px;overflow:hidden;position:relative}
+.screen-card::before{content:'';position:absolute;top:0;left:0;width:3px;height:100%}
+.screen-card.s-pack::before{background:var(--or)}
+.screen-card.s-rfid::before{background:var(--bl)}
+.screen-card.s-vis::before{background:var(--gn)}
+.screen-card.s-track::before{background:var(--pu)}
+.screen-card.s-return::before{background:var(--pk)}
+.screen-card.s-weight::before{background:var(--yw)}
+
+.sc-head{display:flex;align-items:center;gap:14px;padding:18px 24px;border-bottom:1px solid var(--border);background:var(--surf2)}
+.sc-num{font-family:var(--mono);font-size:10px;color:var(--mt);min-width:60px}
+.sc-ico{font-size:20px}
+.sc-name{font-family:var(--sans);font-weight:700;font-size:16px;color:#fff}
+.sc-route{font-family:var(--mono);font-size:10px;color:var(--mt);margin-left:auto;padding:2px 10px;border:1px solid var(--border2)}
+.sc-desc{font-size:12px;color:var(--mt);padding:14px 24px 0;line-height:1.6;border-bottom:1px solid var(--border);padding-bottom:14px}
+
+.sc-body{display:grid;grid-template-columns:1fr 1fr;gap:0}
+.sc-body.full{grid-template-columns:1fr}
+.sc-body.three{grid-template-columns:1fr 1fr 1fr}
+
+/* ── MOCKUP COLUMN ── */
+.mockup-col{padding:24px;border-right:1px solid var(--border)}
+.mockup-label{font-family:var(--mono);font-size:9px;letter-spacing:3px;color:var(--mt);text-transform:uppercase;margin-bottom:14px}
+
+/* phone shell */
+.phone{width:200px;margin:0 auto;background:#000;border:2px solid #1a2a40;border-radius:28px;overflow:hidden;position:relative;box-shadow:0 0 40px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.04)}
+.phone::before{content:'';position:absolute;top:0;left:50%;transform:translateX(-50%);width:60px;height:10px;background:#000;border-radius:0 0 10px 10px;z-index:10}
+.ph-status{display:flex;justify-content:space-between;align-items:center;padding:14px 14px 6px;font-size:8px;font-family:var(--mono);color:#4a6380}
+.ph-screen{background:var(--surf);min-height:340px;padding:10px 10px 12px}
+
+/* UI elements */
+.ph-appbar{background:var(--surf3);padding:8px 10px;display:flex;align-items:center;gap:6px;margin-bottom:8px}
+.ph-appbar-title{font-size:11px;font-weight:700;color:#fff;font-family:var(--sans)}
+.ph-appbar-ico{font-size:12px}
+.ph-badge{display:inline-block;font-family:var(--mono);font-size:7px;padding:1px 6px;border-radius:2px}
+.ph-badge.gn{background:var(--gn-d);color:var(--gn);border:1px solid rgba(34,211,160,.3)}
+.ph-badge.rd{background:var(--rd-d);color:var(--rd);border:1px solid rgba(239,68,68,.3)}
+.ph-badge.or{background:var(--or-d);color:var(--or);border:1px solid rgba(249,115,22,.3)}
+.ph-badge.bl{background:var(--bl-d);color:var(--bl);border:1px solid rgba(56,189,248,.3)}
+.ph-badge.yw{background:var(--yw-d);color:var(--yw);border:1px solid rgba(245,158,11,.3)}
+
+.ph-card{background:var(--surf3);border:1px solid var(--border2);padding:8px 9px;margin-bottom:5px;border-radius:2px}
+.ph-card-title{font-size:9px;font-weight:700;color:#fff;font-family:var(--mono);margin-bottom:3px}
+.ph-card-sub{font-size:7.5px;color:var(--mt);line-height:1.4}
+.ph-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:4px}
+.ph-label{font-size:7.5px;color:var(--mt);font-family:var(--mono)}
+.ph-val{font-size:8px;color:var(--tx);font-family:var(--mono)}
+
+.ph-btn{background:var(--or);color:#fff;font-size:9px;font-weight:700;font-family:var(--mono);padding:7px 10px;text-align:center;border-radius:2px;margin-top:6px;letter-spacing:1px}
+.ph-btn.sec{background:var(--surf3);border:1px solid var(--border2);color:var(--tx)}
+.ph-btn.gn{background:var(--gn);color:#000}
+.ph-btn.bl{background:var(--bl);color:#000}
+.ph-btn.rd{background:var(--rd)}
+
+.ph-input{background:var(--surf);border:1px solid var(--border2);padding:6px 8px;margin-bottom:5px;font-size:8px;font-family:var(--mono);color:var(--tx)}
+.ph-input-label{font-size:7px;color:var(--mt);font-family:var(--mono);margin-bottom:2px;letter-spacing:1px;text-transform:uppercase}
+
+.ph-progress{background:var(--border);height:4px;border-radius:2px;overflow:hidden;margin:4px 0}
+.ph-progress-bar{height:100%;border-radius:2px;background:var(--or)}
+
+.ph-check{display:flex;align-items:center;gap:6px;padding:4px 0;border-bottom:1px solid var(--border)}
+.ph-check:last-child{border-bottom:none}
+.ph-check-box{width:10px;height:10px;border:1px solid;border-radius:1px;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:7px}
+.ph-check-box.done{background:var(--gn);border-color:var(--gn);color:#000}
+.ph-check-box.pend{border-color:var(--mt)}
+.ph-check-box.fail{background:var(--rd);border-color:var(--rd);color:#fff}
+.ph-check-text{font-size:8px;color:var(--tx)}
+.ph-check-qty{font-size:7px;color:var(--mt);margin-left:auto;font-family:var(--mono)}
+
+.ph-divider{height:1px;background:var(--border);margin:6px 0}
+.ph-section{font-size:7px;letter-spacing:2px;text-transform:uppercase;color:var(--mt);font-family:var(--mono);margin-bottom:5px;margin-top:8px}
+
+.ph-stat{background:var(--surf3);padding:7px;text-align:center;border:1px solid var(--border)}
+.ph-stat-val{font-size:16px;font-weight:700;font-family:var(--mono);color:#fff}
+.ph-stat-lbl{font-size:6.5px;color:var(--mt);font-family:var(--mono);letter-spacing:1px;text-transform:uppercase}
+
+.ph-alert{background:var(--rd-d);border:1px solid rgba(239,68,68,.3);padding:6px 8px;border-radius:2px;margin-bottom:5px}
+.ph-alert-txt{font-size:7.5px;color:var(--rd);font-family:var(--mono)}
+
+.ph-scan-area{background:var(--surf3);border:2px dashed var(--border2);padding:16px 8px;text-align:center;margin:6px 0}
+.ph-scan-ico{font-size:22px;margin-bottom:4px}
+.ph-scan-txt{font-size:7.5px;color:var(--mt);font-family:var(--mono)}
+
+.ph-circle{width:60px;height:60px;border-radius:50%;margin:8px auto;display:flex;flex-direction:column;align-items:center;justify-content:center;border:2px solid}
+.ph-circle.pass{border-color:var(--gn);background:var(--gn-d);color:var(--gn)}
+.ph-circle.fail{border-color:var(--rd);background:var(--rd-d);color:var(--rd)}
+.ph-circle.pend{border-color:var(--yw);background:var(--yw-d);color:var(--yw)}
+.ph-circle-val{font-size:14px;font-weight:700;font-family:var(--mono)}
+.ph-circle-sub{font-size:6px;font-family:var(--mono);letter-spacing:1px;text-transform:uppercase}
+
+.ph-rfid{background:var(--bl-d);border:1px solid rgba(56,189,248,.3);padding:8px;margin:4px 0}
+.ph-rfid-row{display:flex;justify-content:space-between;font-size:7.5px;font-family:var(--mono);padding:2px 0;border-bottom:1px solid rgba(56,189,248,.1)}
+.ph-rfid-row:last-child{border-bottom:none}
+.ph-rfid-key{color:var(--mt)}
+.ph-rfid-val{color:var(--bl)}
+
+/* ── SPEC COLUMN ── */
+.spec-col{padding:24px}
+.spec-title{font-family:var(--mono);font-size:10px;letter-spacing:2px;color:var(--or);text-transform:uppercase;margin-bottom:16px;display:flex;align-items:center;gap:8px}
+.spec-title::after{content:'';flex:1;height:1px;background:var(--border2)}
+
+/* field table */
+.ftable{width:100%;border-collapse:collapse;margin-bottom:18px}
+.ftable th{font-family:var(--mono);font-size:9px;color:var(--mt);text-transform:uppercase;letter-spacing:1px;padding:6px 10px;background:var(--surf2);border:1px solid var(--border);text-align:left}
+.ftable td{font-size:11px;padding:7px 10px;border:1px solid var(--border);vertical-align:top;line-height:1.4}
+.ftable tr:nth-child(even) td{background:rgba(255,255,255,.01)}
+.fn{font-family:var(--mono);font-size:11px;color:var(--bl)}
+.ft{font-family:var(--mono);font-size:10px;color:var(--mt)}
+.fdesc{color:var(--tx);font-size:11px}
+.fv{font-family:var(--mono);font-size:10px;color:var(--yw)}
+.req{font-family:var(--mono);font-size:9px}
+.req.y{color:var(--rd)}
+.req.n{color:var(--mt)}
+.req.c{color:var(--yw)}
+
+/* flow steps */
+.flow-steps{display:flex;flex-direction:column;gap:0;margin-bottom:16px}
+.fls{display:flex;gap:12px;align-items:flex-start;position:relative;padding-bottom:12px}
+.fls:not(:last-child)::after{content:'';position:absolute;left:13px;top:28px;bottom:0;width:1px;background:var(--border2)}
+.fls-dot{width:26px;height:26px;border-radius:50%;flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:10px;font-family:var(--mono);font-weight:700;border:1px solid}
+.fls-dot.or{background:var(--or-d);border-color:var(--or);color:var(--or)}
+.fls-dot.bl{background:var(--bl-d);border-color:var(--bl);color:var(--bl)}
+.fls-dot.gn{background:var(--gn-d);border-color:var(--gn);color:var(--gn)}
+.fls-dot.rd{background:var(--rd-d);border-color:var(--rd);color:var(--rd)}
+.fls-dot.yw{background:var(--yw-d);border-color:var(--yw);color:var(--yw)}
+.fls-dot.pu{background:var(--pu-d);border-color:var(--pu);color:var(--pu)}
+.fls-content{}
+.fls-title{font-family:var(--mono);font-size:11px;font-weight:600;color:#fff;margin-bottom:3px}
+.fls-desc{font-size:11px;color:var(--mt);line-height:1.5}
+
+/* rules */
+.rules{display:flex;flex-direction:column;gap:6px;margin-bottom:16px}
+.rule{display:flex;gap:10px;align-items:flex-start;padding:8px 10px;background:var(--surf2);border-left:2px solid}
+.rule.or{border-color:var(--or)}
+.rule.bl{border-color:var(--bl)}
+.rule.gn{border-color:var(--gn)}
+.rule.rd{border-color:var(--rd)}
+.rule.yw{border-color:var(--yw)}
+.rule.pu{border-color:var(--pu)}
+.rule-ico{font-size:14px;flex-shrink:0}
+.rule-txt{font-size:11px;color:var(--tx);line-height:1.5}
+.rule-txt strong{font-family:var(--mono);font-size:10px}
+
+/* api box */
+.api-box{background:var(--surf2);border:1px solid var(--border2);padding:14px;font-family:var(--mono);font-size:11px;margin-bottom:12px}
+.api-method{display:inline-block;font-size:9px;padding:2px 8px;border-radius:2px;margin-right:8px;font-weight:700}
+.api-method.post{background:rgba(34,211,160,.2);color:var(--gn)}
+.api-method.get{background:rgba(56,189,248,.2);color:var(--bl)}
+.api-method.put{background:rgba(245,158,11,.2);color:var(--yw)}
+.api-method.del{background:rgba(239,68,68,.2);color:var(--rd)}
+.api-path{color:#fff}
+.api-desc{font-size:10px;color:var(--mt);margin-top:5px;line-height:1.4}
+.api-body{background:var(--bg);padding:8px;margin-top:6px;font-size:10px;color:var(--gn);white-space:pre;overflow-x:auto}
+
+/* state diagram */
+.states{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px}
+.state{padding:6px 12px;border:1px solid var(--border2);font-family:var(--mono);font-size:10px;position:relative}
+.state.active{border-color:var(--gn);color:var(--gn);background:var(--gn-g)}
+.state.warn{border-color:var(--yw);color:var(--yw);background:var(--yw-d)}
+.state.err{border-color:var(--rd);color:var(--rd);background:var(--rd-d)}
+.state.info{border-color:var(--bl);color:var(--bl);background:var(--bl-g)}
+.state.def{color:var(--mt)}
+
+/* logic box */
+.logic{background:var(--bg);border:1px solid var(--border);padding:12px 14px;font-family:var(--mono);font-size:10px;color:var(--gn);line-height:1.8;margin-bottom:12px;white-space:pre-wrap}
+.logic .comment{color:var(--mt)}
+.logic .key{color:var(--bl)}
+.logic .val{color:var(--or)}
+.logic .str{color:var(--yw)}
+
+/* ── OVERVIEW GRID ── */
+.ov-grid{display:grid;grid-template-columns:repeat(5,1fr);gap:1px;background:var(--border);border:1px solid var(--border);margin-bottom:32px;overflow:hidden}
+.ov-cell{background:var(--surf);padding:14px 12px;text-align:center}
+.ov-cell-num{font-family:var(--mono);font-size:22px;font-weight:700;color:var(--or);margin-bottom:4px}
+.ov-cell-lbl{font-family:var(--mono);font-size:9px;color:var(--mt);letter-spacing:1px;text-transform:uppercase;line-height:1.4}
+
+/* ── ARCH STRIP ── */
+.arch-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:0;background:var(--border);border:1px solid var(--border2);margin-bottom:32px;overflow:hidden}
+.arch-layer{background:var(--surf);padding:16px;text-align:center;position:relative}
+.arch-layer:not(:last-child)::after{content:'▶';position:absolute;right:-10px;top:50%;transform:translateY(-50%);color:var(--or);font-size:11px;background:var(--bg);padding:2px;z-index:2}
+.arch-icon{font-size:24px;margin-bottom:8px}
+.arch-name{font-family:var(--mono);font-size:10px;color:var(--or);font-weight:700;margin-bottom:6px;letter-spacing:1px}
+.arch-items{font-size:10px;color:var(--mt);line-height:1.6}
+
+/* ── PERMISSION TABLE ── */
+.perm-row{display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--border)}
+.perm-row:last-child{border-bottom:none}
+.perm-ico{font-size:14px;width:24px;flex-shrink:0}
+.perm-name{font-family:var(--mono);font-size:11px;color:#fff;min-width:140px}
+.perm-reason{font-size:11px;color:var(--mt);flex:1}
+.perm-req{font-family:var(--mono);font-size:9px;padding:2px 8px}
+
+/* ── DATA FLOW DIAGRAM ── */
+.dflow{display:flex;align-items:center;gap:0;overflow-x:auto;padding:16px 0;margin-bottom:12px}
+.dnode{background:var(--surf2);border:1px solid var(--border2);padding:10px 14px;text-align:center;flex-shrink:0;min-width:90px}
+.dnode-ico{font-size:16px;margin-bottom:4px}
+.dnode-name{font-family:var(--mono);font-size:9px;color:var(--bl);font-weight:700}
+.dnode-desc{font-size:9px;color:var(--mt);line-height:1.3;margin-top:2px}
+.darr{flex-shrink:0;padding:0 4px;color:var(--or);font-size:12px;font-family:var(--mono)}
+.darr-top{display:flex;flex-direction:column;align-items:center;font-size:8px;color:var(--mt);font-family:var(--mono);gap:2px}
+.darr-ico{font-size:12px;color:var(--or)}
+
+/* ── INLINE CODE ── */
+code{font-family:var(--mono);font-size:10px;color:var(--bl);background:rgba(56,189,248,.08);padding:1px 5px}
+
+/* ── TAG ── */
+.tag{font-family:var(--mono);font-size:9px;padding:2px 7px;border-radius:2px;display:inline-block;margin:1px}
+.tag.or{background:var(--or-d);color:var(--or);border:1px solid rgba(249,115,22,.25)}
+.tag.bl{background:var(--bl-d);color:var(--bl);border:1px solid rgba(56,189,248,.25)}
+.tag.gn{background:var(--gn-d);color:var(--gn);border:1px solid rgba(34,211,160,.25)}
+.tag.yw{background:var(--yw-d);color:var(--yw);border:1px solid rgba(245,158,11,.25)}
+.tag.rd{background:var(--rd-d);color:var(--rd);border:1px solid rgba(239,68,68,.25)}
+
+/* ── FOOTER ── */
+.foot{text-align:center;padding:32px;font-family:var(--mono);font-size:10px;color:var(--mt);border-top:1px solid var(--border)}
+
+/* ── NOTICE ── */
+.notice{background:var(--or-g);border:1px solid rgba(249,115,22,.3);padding:12px 16px;font-size:12px;color:var(--tx);display:flex;gap:10px;align-items:flex-start;margin-bottom:16px}
+.notice-ico{font-size:16px;flex-shrink:0}
+.notice-txt{line-height:1.6}
+
+/* Responsive */
+@media(max-width:760px){
+  .sc-body{grid-template-columns:1fr!important}
+  .mockup-col{border-right:none;border-bottom:1px solid var(--border)}
+  .ov-grid{grid-template-columns:repeat(3,1fr)}
+  .arch-strip{grid-template-columns:repeat(2,1fr)}
+  .hdr-title{font-size:34px}
+  .three-col{grid-template-columns:1fr!important}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- ══════════════════════════════════════════ HEADER ══ -->
+<div class="hdr">
+  <div class="hdr-eyebrow">SmartDispatch · Worker App · v2.0</div>
+  <div class="hdr-title">FLUTTER <span class="acc">WORKER</span> APP</div>
+  <div class="hdr-subtitle">Complete screen-by-screen specification — product scan & OCR verification, RFID write & sector lock, weight check, AI vision confirm, hub tracking, truck tracking, and box return lifecycle.</div>
+  <div class="hdr-tags">
+    <span class="htag hi">Flutter 3.x</span>
+    <span class="htag hi">Dart</span>
+    <span class="htag">google_ml_kit (OCR)</span>
+    <span class="htag">NFC (flutter_nfc_kit)</span>
+    <span class="htag">NDEF / ISO 15693</span>
+    <span class="htag">AES-128</span>
+    <span class="htag">Supabase Realtime</span>
+    <span class="htag">MQTT</span>
+    <span class="htag">Mapbox</span>
+    <span class="htag">Drift + SQLite</span>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════ OVERVIEW COUNTS ══ -->
+<div class="ov-grid">
+  <div class="ov-cell"><div class="ov-cell-num">9</div><div class="ov-cell-lbl">App Screens</div></div>
+  <div class="ov-cell"><div class="ov-cell-num">3</div><div class="ov-cell-lbl">Verify Methods</div></div>
+  <div class="ov-cell"><div class="ov-cell-num">4</div><div class="ov-cell-lbl">NFC Sectors</div></div>
+  <div class="ov-cell"><div class="ov-cell-num">2</div><div class="ov-cell-lbl">Tracking Stages</div></div>
+  <div class="ov-cell"><div class="ov-cell-num">500+</div><div class="ov-cell-lbl">Box Reuse Cycles</div></div>
+</div>
+
+<!-- ══════════════════════════════════════════ ARCH FLOW ══ -->
+<div class="sec-hdr">
+  <div class="sec-num">00 — ARCH</div>
+  <div class="sec-title">System Data Flow</div>
+  <div class="sec-line"></div>
+</div>
+
+<div class="arch-strip">
+  <div class="arch-layer">
+    <div class="arch-icon">📷</div>
+    <div class="arch-name">VERIFY</div>
+    <div class="arch-items">OCR product scan<br>Weight check<br>AI vision match<br>Manual checklist</div>
+  </div>
+  <div class="arch-layer">
+    <div class="arch-icon">📡</div>
+    <div class="arch-name">NFC WRITE</div>
+    <div class="arch-items">Manifest hash → tag<br>Sector lock (AES-128)<br>Tamper seal apply<br>Portal gate verify</div>
+  </div>
+  <div class="arch-layer">
+    <div class="arch-icon">🏭</div>
+    <div class="arch-name">HUB TRACK</div>
+    <div class="arch-items">Gate scan events<br>Live dashboard<br>Missing box alert<br>MQTT → Supabase</div>
+  </div>
+  <div class="arch-layer">
+    <div class="arch-icon">🚚</div>
+    <div class="arch-name">TRUCK + RETURN</div>
+    <div class="arch-items">GPS + RFID on truck<br>5-min inventory scan<br>Delivery sign-off<br>Return → credit</div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ SCREEN 01 — LOGIN ═══ -->
+<div class="sec-hdr">
+  <div class="sec-num">SCREEN 01</div>
+  <div class="sec-title">Worker Login</div>
+  <div class="sec-line"></div>
+</div>
+
+<div class="screen-card s-pack">
+  <div class="sc-head">
+    <div class="sc-num">01 / 09</div>
+    <div class="sc-ico">🔐</div>
+    <div class="sc-name">Worker Login & Biometric Auth</div>
+    <div class="sc-route">/login</div>
+  </div>
+  <div class="sc-desc">Entry point for warehouse workers. Supports email + PIN login or biometric (fingerprint / face). Worker role (packer, supervisor, driver) determines which screens are accessible. Offline login caches last session with 12-hour JWT.</div>
+  <div class="sc-body">
+    <div class="mockup-col">
+      <div class="mockup-label">Screen Preview</div>
+      <div class="phone">
+        <div class="ph-status"><span>09:41</span><span>▮▮▮</span></div>
+        <div class="ph-screen">
+          <div style="text-align:center;padding:16px 0 12px">
+            <div style="font-size:24px;margin-bottom:6px">📦</div>
+            <div style="font-family:var(--mono);font-size:14px;font-weight:700;color:#fff;letter-spacing:-1px">SMART<span style="color:var(--or)">DISPATCH</span></div>
+            <div style="font-size:8px;color:var(--mt);font-family:var(--mono);letter-spacing:2px;margin-top:3px">WORKER PORTAL</div>
+          </div>
+          <div class="ph-input-label">Worker ID / Email</div>
+          <div class="ph-input">WK-04219 ██████████</div>
+          <div class="ph-input-label">PIN (6-digit)</div>
+          <div class="ph-input">● ● ● ● ● ●</div>
+          <div style="display:flex;gap:4px">
+            <div class="ph-btn" style="flex:1">SIGN IN</div>
+            <div class="ph-btn sec" style="flex-shrink:0;padding:7px">👆</div>
+          </div>
+          <div class="ph-divider"></div>
+          <div class="ph-badge or" style="display:block;text-align:center;padding:5px">BIOMETRIC / FACE ID AVAILABLE</div>
+          <div style="font-size:7px;color:var(--mt);text-align:center;margin-top:8px;font-family:var(--mono)">Works offline · JWT cached 12h</div>
+        </div>
+      </div>
+    </div>
+    <div class="spec-col">
+      <div class="spec-title">Fields & Inputs</div>
+      <table class="ftable">
+        <tr><th>Field</th><th>Type</th><th>Validation</th><th>Req</th></tr>
+        <tr><td class="fn">worker_id</td><td class="ft">TextInput</td><td class="fdesc">WK-XXXXX format or email</td><td class="req y">Y</td></tr>
+        <tr><td class="fn">pin</td><td class="ft">SecureInput</td><td class="fdesc">6 digits, obscured, local SHA-256 hash</td><td class="req c">C</td></tr>
+        <tr><td class="fn">biometric_token</td><td class="ft">LocalAuth</td><td class="fdesc">flutter_local_auth, fingerprint / face</td><td class="req c">C</td></tr>
+        <tr><td class="fn">remember_me</td><td class="ft">Toggle</td><td class="fdesc">Caches JWT in FlutterSecureStorage</td><td class="req n">N</td></tr>
+        <tr><td class="fn">role</td><td class="ft">Auto (server)</td><td class="fdesc">packer / supervisor / driver / return_desk</td><td class="req y">Y</td></tr>
+      </table>
+      <div class="spec-title">Auth Logic</div>
+      <div class="logic"><span class="comment">// Login flow</span>
+<span class="key">if</span> (biometric_available && user_enrolled)
+  <span class="key">→</span> LocalAuth.authenticate()
+  <span class="key">→</span> use cached JWT (refresh if expired)
+<span class="key">else</span>
+  <span class="key">→</span> POST /api/auth/login {worker_id, pin_hash}
+  <span class="key">→</span> receive JWT + role
+  <span class="key">→</span> store in FlutterSecureStorage
+
+<span class="comment">// Offline fallback</span>
+<span class="key">if</span> (no_network && cached_jwt_valid)
+  <span class="key">→</span> allow login, queue sync</div>
+      <div class="spec-title">Permissions Required on First Launch</div>
+      <div class="rules">
+        <div class="rule or"><div class="rule-ico">📷</div><div class="rule-txt"><strong>CAMERA</strong> — OCR product label scan, AI vision check, seal photo capture</div></div>
+        <div class="rule bl"><div class="rule-ico">📲</div><div class="rule-txt"><strong>NFC</strong> — Read/write NFC tags embedded in smart boxes (flutter_nfc_kit)</div></div>
+        <div class="rule gn"><div class="rule-ico">📍</div><div class="rule-txt"><strong>LOCATION (coarse)</strong> — truck scan GPS logging</div></div>
+        <div class="rule yw"><div class="rule-ico">📳</div><div class="rule-txt"><strong>VIBRATION</strong> — haptic on tamper alert or scan fail</div></div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ SCREEN 02 — HOME DASHBOARD ═══ -->
+<div class="sec-hdr">
+  <div class="sec-num">SCREEN 02</div>
+  <div class="sec-title">Packer Home Dashboard</div>
+  <div class="sec-line"></div>
+</div>
+
+<div class="screen-card s-pack">
+  <div class="sc-head">
+    <div class="sc-num">02 / 09</div>
+    <div class="sc-ico">🏠</div>
+    <div class="sc-name">Packer Home — Orders Queue + Alerts</div>
+    <div class="sc-route">/home</div>
+  </div>
+  <div class="sc-desc">Landing screen after login. Shows today's packing queue, active alerts (tamper, wrong-box), and quick-action buttons. Real-time updates via Supabase Realtime subscription on <code>orders</code> and <code>box_seals</code> tables.</div>
+  <div class="sc-body">
+    <div class="mockup-col">
+      <div class="mockup-label">Screen Preview</div>
+      <div class="phone">
+        <div class="ph-status"><span>09:41</span><span>WK-04219</span></div>
+        <div class="ph-screen">
+          <div class="ph-appbar">
+            <div class="ph-appbar-ico">📦</div>
+            <div class="ph-appbar-title">SmartDispatch</div>
+            <div class="ph-badge or" style="margin-left:auto">2 ALERTS</div>
+          </div>
+          <!-- Stats row -->
+          <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:3px;margin-bottom:6px">
+            <div class="ph-stat"><div class="ph-stat-val" style="color:var(--or)">12</div><div class="ph-stat-lbl">Pending</div></div>
+            <div class="ph-stat"><div class="ph-stat-val" style="color:var(--gn)">8</div><div class="ph-stat-lbl">Packed</div></div>
+            <div class="ph-stat"><div class="ph-stat-val" style="color:var(--bl)">3</div><div class="ph-stat-lbl">Sealed</div></div>
+          </div>
+          <!-- Order cards -->
+          <div class="ph-section">NEXT ORDER</div>
+          <div class="ph-card">
+            <div class="ph-row"><div class="ph-card-title">ORD-20250604-0042</div><div class="ph-badge or">URGENT</div></div>
+            <div class="ph-card-sub">3 items · Box M · Est. 4.2 kg</div>
+            <div class="ph-progress"><div class="ph-progress-bar" style="width:0%"></div></div>
+          </div>
+          <div class="ph-card">
+            <div class="ph-row"><div class="ph-card-title">ORD-20250604-0043</div><div class="ph-badge bl">NORMAL</div></div>
+            <div class="ph-card-sub">1 item · Box S · Est. 1.8 kg</div>
+          </div>
+          <!-- Alert -->
+          <div class="ph-section">ALERTS</div>
+          <div class="ph-alert"><div class="ph-alert-txt">⚠ TAMPER — Box #BX-0891 seal broken at Gate 3</div></div>
+          <div class="ph-btn">START PACKING →</div>
+        </div>
+      </div>
+    </div>
+    <div class="spec-col">
+      <div class="spec-title">Dashboard Data</div>
+      <table class="ftable">
+        <tr><th>Field</th><th>Source</th><th>Update</th></tr>
+        <tr><td class="fn">pending_count</td><td class="fdesc">orders WHERE status='PENDING' AND assigned_to=me</td><td class="ft">Realtime</td></tr>
+        <tr><td class="fn">packed_count</td><td class="fdesc">orders WHERE status='PACKED' AND date=today</td><td class="ft">Realtime</td></tr>
+        <tr><td class="fn">sealed_count</td><td class="fdesc">box_seals WHERE status='SEALED' AND date=today</td><td class="ft">Realtime</td></tr>
+        <tr><td class="fn">active_alerts</td><td class="fdesc">alerts WHERE resolved=false AND worker=me</td><td class="ft">Push + Realtime</td></tr>
+        <tr><td class="fn">next_order</td><td class="fdesc">Oldest PENDING order assigned to worker</td><td class="ft">Realtime</td></tr>
+      </table>
+      <div class="spec-title">User Flow</div>
+      <div class="flow-steps">
+        <div class="fls"><div class="fls-dot or">1</div><div class="fls-content"><div class="fls-title">View Queue</div><div class="fls-desc">Worker sees today's orders sorted by priority (urgent first). Each card shows order ID, item count, suggested box size, estimated weight.</div></div></div>
+        <div class="fls"><div class="fls-dot or">2</div><div class="fls-content"><div class="fls-title">Check Alerts</div><div class="fls-desc">Red alert cards for tamper events, wrong-box assignments, or overdue orders. Tap to view details and resolve.</div></div></div>
+        <div class="fls"><div class="fls-dot gn">3</div><div class="fls-content"><div class="fls-title">Start Packing</div><div class="fls-desc">Tap "START PACKING" to begin the verification flow for the next order. Navigates to the product scan screen.</div></div></div>
+      </div>
+      <div class="spec-title">API Endpoints</div>
+      <div class="api-box">
+        <span class="api-method get">GET</span><span class="api-path">/api/orders?status=PENDING&worker={id}</span>
+        <div class="api-desc">Fetch assigned pending orders for the current worker, sorted by priority and creation time.</div>
+      </div>
+      <div class="api-box">
+        <span class="api-method get">GET</span><span class="api-path">/api/alerts?resolved=false&worker={id}</span>
+        <div class="api-desc">Fetch active alerts (tamper, wrong-box, overdue) for the worker.</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════ PLACEHOLDER FOR REMAINING SCREENS ═══ -->
+<!-- NOTE: The original HTML was truncated. Paste the full version to complete screens 03-09. -->
+
+</div>
+
+<div class="foot">
+  SmartDispatch · Flutter Worker App Specification · v2.0 · All screens defined
+</div>
+
+</body>
+</html>]]>
