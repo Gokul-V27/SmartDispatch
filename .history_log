@@ -1,2 +1,3 @@
 fix: resolve null pointer exception in auth service
 fix: correct UI alignment in mobile dashboard
+chore: update dependencies and remove unused imports
