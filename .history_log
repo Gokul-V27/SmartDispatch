@@ -4,3 +4,4 @@ chore: update dependencies and remove unused imports
 fix: handle edge case in NFC tag scanning
 docs: add comments to order processing logic
 fix: resolve API CORS issue in local dev
+fix: fix typo in validation error message
