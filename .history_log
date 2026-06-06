@@ -11,3 +11,4 @@ refactor: extract common constants to shared file
 fix: resolve memory leak in vision processing module
 fix: correct padding on product detail screen
 perf: optimize image loading in admin dashboard
+fix: handle timeout scenario in Supabase client
