@@ -120,16 +120,27 @@ class _PackCompleteScreenState extends State<PackCompleteScreen> with SingleTick
         await Future.delayed(const Duration(seconds: 2));
       } else {
         // Real NFC hardware
-        final tag = await FlutterNfcKit.poll(timeout: const Duration(seconds: 15));
-        if (tag.ndefAvailable != true) {
-          throw Exception('NDEF not available on this tag');
+        try {
+          final tag = await FlutterNfcKit.poll(
+            timeout: const Duration(seconds: 15),
+            iosAlertMessage: 'Hold phone near the NFC tag on the box.',
+          );
+          
+          if (tag.ndefAvailable != true) {
+            throw Exception('Tag is not NDEF formatted or supported.');
+          }
+          
+          tagId = tag.id; // Get physical tag ID
+          
+          final record = ndef.TextRecord(text: encryptedPayload, language: 'en');
+          await FlutterNfcKit.writeNDEFRecords([record]);
+          
+        } finally {
+          // CRITICAL: Always release the NFC transceive session, even on communication errors
+          try {
+            await FlutterNfcKit.finish(iosAlertMessage: 'Sealed!');
+          } catch (_) {}
         }
-        
-        tagId = tag.id; // Get physical tag ID
-        
-        final record = ndef.TextRecord(text: encryptedPayload, language: 'en');
-        await FlutterNfcKit.writeNDEFRecords([record]);
-        await FlutterNfcKit.finish();
       }
 
       // Notify backend that tag is registered and sealed
@@ -154,7 +165,15 @@ class _PackCompleteScreenState extends State<PackCompleteScreen> with SingleTick
       if (mounted) {
         setState(() {
           _isWriting = false;
-          _error = e.toString();
+          // Clean up the raw PlatformException message for the user
+          final errorStr = e.toString();
+          if (errorStr.contains('Communication error') || errorStr.contains('500')) {
+            _error = 'Connection lost. Please hold the phone completely still against the tag.';
+          } else if (errorStr.contains('Timeout')) {
+            _error = 'No tag detected. Please try again.';
+          } else {
+            _error = errorStr;
+          }
           _statusMessage = 'Failed to write NFC tag';
         });
       }
