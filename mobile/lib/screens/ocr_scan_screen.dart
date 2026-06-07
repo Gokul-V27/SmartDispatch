@@ -181,17 +181,30 @@ class _OcrScanScreenState extends State<OcrScanScreen>
     });
   }
 
+  final Set<String> _triedBarcodes = {};
+
   Future<void> _processCapture(BarcodeCapture capture) async {
     try {
       if (_status == 'scanning' && capture.barcodes.isNotEmpty) {
-        final raw = capture.barcodes.first.rawValue;
-        if (raw != null && raw.isNotEmpty) {
-          // FIX 11: Stop scanner via our wrapper BEFORE the async verify call.
-          // This ensures _isScannerStopped is true so any frames that arrive
-          // in the brief window before the native stop completes are dropped.
-          _stopScanner();
-          await _verifyWithBackend(raw);
+        final packProv = Provider.of<PackingProvider>(context, listen: false);
+        
+        for (var barcode in capture.barcodes) {
+          final raw = barcode.rawValue;
+          if (raw != null && raw.isNotEmpty && !_triedBarcodes.contains(raw)) {
+            _triedBarcodes.add(raw);
+            
+            // Silently verify without stopping the scanner
+            final result = await packProv.verifyItemBackend(raw);
+            if (!mounted || _isDisposed) return;
+            
+            if (result['result'] == 'PASS') {
+              _stopScanner();
+              _handleResult(true, 'Match!', result: result);
+              return;
+            }
+          }
         }
+        // If no barcodes in this frame matched, just return and let it keep scanning!
       } else if (_status == 'ocr_fallback' && capture.image != null) {
         final inputImage =
             await MLHelpers.inputImageFromMobileScanner(capture.image!);
@@ -299,14 +312,12 @@ class _OcrScanScreenState extends State<OcrScanScreen>
       HapticFeedback.mediumImpact();
       packProv.passGate(GateType.identity);
       
-      final bool colorMatch = result != null && result['colorMatch'] == true;
-      if (colorMatch) {
-         packProv.passGate(GateType.color);
-      }
+      // User requested to automatically skip color step and take details from scan
+      packProv.passGate(GateType.color);
 
       _navigationTimer = Timer(const Duration(milliseconds: 800), () {
         if (!mounted || _isDisposed) return;
-        Navigator.pushReplacementNamed(context, colorMatch ? '/size-estimate' : '/color-verify');
+        Navigator.pushReplacementNamed(context, '/size-estimate');
       });
     } else {
       HapticFeedback.heavyImpact();
