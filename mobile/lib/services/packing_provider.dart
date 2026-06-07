@@ -31,7 +31,7 @@ class PackingProvider extends ChangeNotifier {
     GateType.size: false,
   };
 
-  bool isAutoProcessing = true; // Default as requested
+  bool isAutoProcessing = false; // Turned off to allow real camera usage
   bool isLoading = false;
   String? error;
 

@@ -134,12 +134,17 @@ class _SizeEstimateScreenState extends State<SizeEstimateScreen> {
           double remainingVol = box.volL - packedVol;
           double fitPct = ((packedVol + itemVolL) / box.volL) * 100;
           
-          if (itemVolL > remainingVol || estL > box.dimsCm[0] || estW > box.dimsCm[1]) {
+          String reason = "";
+          if (estL > box.dimsCm[0]) reason = "Item length (${estL.toStringAsFixed(1)}cm) > Box (${box.dimsCm[0]}cm).\n";
+          if (estW > box.dimsCm[1]) reason += "Item width (${estW.toStringAsFixed(1)}cm) > Box (${box.dimsCm[1]}cm).\n";
+          if (itemVolL > remainingVol) reason += "Item vol (${itemVolL.toStringAsFixed(1)}L) > Free space (${remainingVol.toStringAsFixed(1)}L).\n";
+
+          if (reason.isNotEmpty) {
              _cameraController?.stopImageStream();
-             _handleResult(false, estL, estW, estH, fitPct, "Item exceeds remaining box volume or dimensions.");
+             _handleResult(false, estL, estW, estH, fitPct, reason.trim() + "\n\nBox Free Space: ${remainingVol.toStringAsFixed(1)}L");
           } else {
              _cameraController?.stopImageStream();
-             _handleResult(true, estL, estW, estH, fitPct, "");
+             _handleResult(true, estL, estW, estH, fitPct, "Box Free Space: ${remainingVol.toStringAsFixed(1)}L");
           }
         }
       }
@@ -362,9 +367,24 @@ class _SizeEstimateScreenState extends State<SizeEstimateScreen> {
                   
                   if (!isPass) ...[
                     const SizedBox(height: 16),
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.red.withOpacity(0.1),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppColors.red.withOpacity(0.3)),
+                      ),
+                      child: Text(
+                        _failReason,
+                        style: const TextStyle(fontSize: 12, color: AppColors.red, fontWeight: FontWeight.w600),
+                        textAlign: TextAlign.center,
+                      ),
+                    ),
+                  ] else ...[
+                    const SizedBox(height: 16),
                     Text(
-                      _failReason,
-                      style: const TextStyle(fontSize: 12, color: AppColors.red),
+                      _failReason, // Shows the Box Free Space even on pass
+                      style: const TextStyle(fontSize: 12, color: AppColors.teal, fontWeight: FontWeight.w600),
                       textAlign: TextAlign.center,
                     ),
                   ]

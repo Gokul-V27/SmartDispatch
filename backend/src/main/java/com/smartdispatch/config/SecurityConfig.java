@@ -40,7 +40,7 @@ public class SecurityConfig {
             .csrf(csrf -> csrf.disable())
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
-                .requestMatchers("/api/auth/register", "/api/auth/login", "/api/auth/pin-login").permitAll()
+                .requestMatchers("/api/auth/register", "/api/auth/login", "/api/auth/pin-login", "/api/auth/users").permitAll()
                 .requestMatchers("/h2-console/**").permitAll()
                 .requestMatchers("/api/products/**").permitAll() // Public product browsing
                 .requestMatchers("/api/tracking/**").permitAll() // Public tracking
@@ -77,7 +77,7 @@ public class SecurityConfig {
         List<String> origins = Arrays.stream(allowedOrigins.split(","))
                 .map(String::trim)
                 .collect(Collectors.toList());
-        config.setAllowedOrigins(origins);
+        config.setAllowedOriginPatterns(List.of("*"));
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"));
         config.setAllowedHeaders(List.of("*"));
         config.setExposedHeaders(List.of("Authorization"));

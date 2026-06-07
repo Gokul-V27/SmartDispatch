@@ -8,16 +8,7 @@ class MLHelpers {
   /// Checks if running on a real physical device
   static bool isPhysicalDevice() {
     if (kIsWeb) return false;
-    // For iOS simulator, Platform.environment usually has SIMULATOR_HOST_HOME
-    // For Android emulator, usually starts with generic or vbox
-    if (Platform.isIOS) {
-      return !Platform.environment.containsKey('SIMULATOR_HOST_HOME');
-    }
-    if (Platform.isAndroid) {
-      return !(Platform.environment['HARDWARE']?.contains('goldfish') == true ||
-               Platform.environment['HARDWARE']?.contains('ranchu') == true);
-    }
-    return false;
+    return true; // Let availableCameras() determine if a camera actually exists
   }
 
   /// Converts a camera stream image into ML Kit InputImage format

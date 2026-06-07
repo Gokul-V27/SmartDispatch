@@ -12,7 +12,7 @@ import '../models/telemetry_alert_model.dart';
 class DispatchProvider extends ChangeNotifier {
   // ── Backend URL ────────────────────────────────────────────
   // Android emulator → 10.0.2.2, iOS simulator → localhost, real device → your IP
-  static const String _baseUrl = 'http://10.0.2.2:8080/api';
+  static const String _baseUrl = 'http://192.168.0.109:8080/api';
 
   // ── Auth state ─────────────────────────────────────────────
   String? _token;

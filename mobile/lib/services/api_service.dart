@@ -5,7 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// API service connecting Flutter app to Spring Boot backend.
 class ApiService {
   // Change this to your server IP when testing on a physical device
-  static const String baseUrl = 'http://10.0.2.2:8080/api'; // Android emulator → host machine
+  static const String baseUrl = 'http://192.168.0.109:8080/api'; // Real device on local network
 
   Future<String?> _getToken() async {
     final prefs = await SharedPreferences.getInstance();

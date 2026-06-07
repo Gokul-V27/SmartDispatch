@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 class AppConstants {
-  static const String apiUrl = 'http://localhost:8080/api'; // Mock endpoint
+  static const String apiUrl = 'http://192.168.0.109:8080/api'; // Mock endpoint
   
   // Layer colors from spec
   static const Map<String, Map<String, dynamic>> layerColors = {
