@@ -229,6 +229,9 @@ export default function App() {
       // Auto-set as selected print order
       setSelectedPrintOrderId(newlyPacked.id);
       
+      // Automatically navigate to Print Center tab
+      setActiveTab('print');
+      
       // Trigger the premium auto-print popup
       setNfcPopupOrder(newlyPacked);
       setShowNfcPopup(true);
@@ -283,6 +286,15 @@ export default function App() {
       addToast('Real-time warehouse registry synced', 'success');
     }, 1000);
   };
+
+  // Real-time background polling (Simulating SSE/WebSockets for Prototype)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+    const pollTimer = setInterval(() => {
+      fetchDataFromBackend();
+    }, 3000); // Poll every 3 seconds
+    return () => clearInterval(pollTimer);
+  }, [isAuthenticated]);
 
   // Keep GMT time updated
   useEffect(() => {
