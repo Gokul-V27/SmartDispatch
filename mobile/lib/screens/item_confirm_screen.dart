@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 import '../core/theme.dart';
 import '../core/color_utils.dart';
 import '../services/packing_provider.dart';
+import '../widgets/packer_guide_widget.dart';
+import '../widgets/flow_stepper_widget.dart';
 
 class ItemConfirmScreen extends StatefulWidget {
   const ItemConfirmScreen({super.key});
@@ -26,6 +29,8 @@ class _ItemConfirmScreenState extends State<ItemConfirmScreen> {
   }
 
   void _confirmItem(PackingProvider packProv) {
+    HapticFeedback.heavyImpact(); // First pulse
+    Future.delayed(const Duration(milliseconds: 120), () => HapticFeedback.mediumImpact()); // Second pulse — "double tap" feel
     packProv.confirmCurrentItemPacked();
     
     if (packProv.isOrderComplete) {
@@ -51,79 +56,92 @@ class _ItemConfirmScreenState extends State<ItemConfirmScreen> {
       appBar: AppBar(
         title: const Text('Confirmation'),
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          children: [
-            // Target Info
-            Container(
+      body: Column(
+        children: [
+          const FlowStepperWidget(currentStep: 4),
+          PackerGuideWidget(
+            stepNumber: 5,
+            totalSteps: 5,
+            stepTitle: '✅ Confirm & Pack',
+            instruction: 'All checks passed. Confirm to pack this item in the box.',
+            expectedInfo: 'Item ${packProv.currentItemIndex + 1} of ${packProv.orderItems.length}',
+          ),
+          Expanded(
+            child: SingleChildScrollView(
               padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.surface,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.borderVisible),
-              ),
-              child: Row(
+              child: Column(
                 children: [
+                  // Target Info
                   Container(
-                    width: 48, height: 48,
+                    padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
-                      color: ColorUtils.parseColor(item.productColor),
-                      borderRadius: BorderRadius.circular(8),
+                      color: AppColors.surface,
+                      borderRadius: BorderRadius.circular(12),
                       border: Border.all(color: AppColors.borderVisible),
                     ),
-                  ),
-                  const SizedBox(width: 16),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                    child: Row(
                       children: [
-                        Text(item.productName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
-                        const SizedBox(height: 4),
-                        Text('SKU: ${item.productSku}', style: const TextStyle(fontFamily: 'JetBrains Mono', fontSize: 12, color: AppColors.textMuted)),
+                        Container(
+                          width: 48, height: 48,
+                          decoration: BoxDecoration(
+                            color: ColorUtils.parseColor(item.productColor),
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: AppColors.borderVisible),
+                          ),
+                        ),
+                        const SizedBox(width: 16),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(item.productName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.textPrimary)),
+                              const SizedBox(height: 4),
+                              Text('SKU: ${item.productSku}', style: const TextStyle(fontFamily: 'JetBrains Mono', fontSize: 12, color: AppColors.textMuted)),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  
+                  const SizedBox(height: 24),
+
+                  // Gates
+                  const Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text('VERIFICATION RESULTS', style: TextStyle(fontFamily: 'JetBrains Mono', fontSize: 12, color: AppColors.textMuted, fontWeight: FontWeight.bold)),
+                  ),
+                  const SizedBox(height: 12),
+
+                  _buildGateRow(GateType.boxIntegrity, 'Box Integrity Check', gates),
+                  _buildGateRow(GateType.identity, 'Identity & Barcode', gates),
+                  _buildGateRow(GateType.color, 'Color Match (ΔE < 15)', gates),
+                  _buildGateRow(GateType.size, 'Size & Volume Fit', gates),
+
+                  const SizedBox(height: 32),
+                  
+                  Container(
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: AppColors.teal.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.teal.withValues(alpha: 0.3)),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.shield, color: AppColors.teal),
+                        SizedBox(width: 16),
+                        Expanded(
+                          child: Text('Item successfully passed all automated gates. Ready to pack.', style: TextStyle(color: AppColors.teal, fontWeight: FontWeight.w500)),
+                        ),
                       ],
                     ),
                   ),
                 ],
               ),
             ),
-            
-            const SizedBox(height: 24),
-
-            // Gates
-            const Align(
-              alignment: Alignment.centerLeft,
-              child: Text('VERIFICATION RESULTS', style: TextStyle(fontFamily: 'JetBrains Mono', fontSize: 12, color: AppColors.textMuted, fontWeight: FontWeight.bold)),
-            ),
-            const SizedBox(height: 12),
-
-            _buildGateRow(GateType.boxIntegrity, 'Box Integrity Check', gates),
-            _buildGateRow(GateType.identity, 'Identity & Barcode', gates),
-            _buildGateRow(GateType.color, 'Color Match (ΔE < 15)', gates),
-            _buildGateRow(GateType.category, 'ML Category Verification', gates),
-            _buildGateRow(GateType.size, 'Size & Volume Fit', gates),
-
-            const SizedBox(height: 32),
-            
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: AppColors.teal.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(color: AppColors.teal.withValues(alpha: 0.3)),
-              ),
-              child: const Row(
-                children: [
-                  Icon(Icons.shield, color: AppColors.teal),
-                  SizedBox(width: 16),
-                  Expanded(
-                    child: Text('Item successfully passed all 5 automated gates. Ready to pack.', style: TextStyle(color: AppColors.teal, fontWeight: FontWeight.w500)),
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
+          ),
+        ],
       ),
       bottomNavigationBar: SafeArea(
         child: Padding(

@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'core/theme.dart';
@@ -34,8 +35,25 @@ import 'screens/client/my_orders_screen.dart';
 import 'screens/client/order_tracking_screen.dart';
 import 'screens/client/delivery_verify_screen.dart';
 
-void main() {
+void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Global error handler — catches all uncaught Flutter framework errors
+  FlutterError.onError = (details) {
+    FlutterError.presentError(details);
+    debugPrint('=== FLUTTER ERROR ===');
+    debugPrint(details.exceptionAsString());
+    debugPrint(details.stack.toString());
+  };
+
+  // Catch async errors that escape all Zones (e.g. in Futures)
+  PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {
+    debugPrint('=== PLATFORM ERROR ===');
+    debugPrint(error.toString());
+    debugPrint(stack.toString());
+    return true; // Prevent crash
+  };
+
   runApp(
     MultiProvider(
       providers: [
@@ -52,6 +70,7 @@ void main() {
     ),
   );
 }
+
 
 class SmartDispatchApp extends StatelessWidget {
   const SmartDispatchApp({super.key});

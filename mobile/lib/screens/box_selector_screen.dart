@@ -4,7 +4,9 @@ import '../core/theme.dart';
 import '../core/constants.dart';
 import '../core/mock_data.dart';
 import '../models/box_models.dart';
+import '../models/order_model.dart';
 import '../services/packing_provider.dart';
+import '../services/dispatch_provider.dart';
 
 class BoxSelectorScreen extends StatefulWidget {
   const BoxSelectorScreen({super.key});
@@ -15,17 +17,42 @@ class BoxSelectorScreen extends StatefulWidget {
 
 class _BoxSelectorScreenState extends State<BoxSelectorScreen> {
   BoxSize _selectedBox = MockData.boxes.firstWhere((b) => b.id == 'M');
-  final Set<int> _checkedItems = {};
+  final Set<String> _checkedItems = {};
+  
+  @override
+  void initState() {
+    super.initState();
+    // Auto-check all items when the screen loads
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final order = context.read<DispatchProvider>().selectedOrder;
+      if (order != null) {
+        setState(() {
+          _checkedItems.addAll(order.items.map((i) => i.id));
+        });
+      }
+    });
+  }
 
-  List<Map<String, dynamic>> _getAlerts() {
+  // Simple mock weight calculation since order items from backend don't include actual weight yet
+  double _getItemWeight(OrderItem item) {
+    if (item.productName.toLowerCase().contains('laptop')) return 2.5;
+    if (item.productName.toLowerCase().contains('phone')) return 0.3;
+    if (item.productName.toLowerCase().contains('mouse')) return 0.15;
+    return 0.5; // Default 500g
+  }
+
+  double _getItemVolL(OrderItem item) {
+    if (item.productName.toLowerCase().contains('laptop')) return 3.0;
+    if (item.productName.toLowerCase().contains('phone')) return 0.5;
+    if (item.productName.toLowerCase().contains('mouse')) return 0.2;
+    return 1.0; // Default 1L
+  }
+
+  List<Map<String, dynamic>> _getAlerts(List<OrderItem> items) {
     final box = _selectedBox;
-    final items = MockData.items.where((it) => _checkedItems.contains(it.id)).toList();
     
-    double totalW = box.tare + items.fold(0, (sum, it) => sum + it.weight);
-    double totalVol = items.fold(0, (sum, it) => sum + it.volL);
-    
-    final fragile = items.where((i) => i.fragile || i.glass).toList();
-    final heavy = items.where((i) => i.layer == 'bottom').toList();
+    double totalW = box.tare + items.fold(0, (sum, it) => sum + _getItemWeight(it));
+    double totalVol = items.fold(0, (sum, it) => sum + _getItemVolL(it));
     
     List<Map<String, dynamic>> alerts = [];
 
@@ -54,58 +81,6 @@ class _BoxSelectorScreenState extends State<BoxSelectorScreen> {
       });
     }
 
-    if (fragile.isNotEmpty && heavy.isNotEmpty) {
-      alerts.add({
-        'level': 'danger',
-        'icon': Icons.dangerous,
-        'title': 'Fragile items will be crushed',
-        'body': 'Heavy base items press down. Fragile must be on top.',
-      });
-    } else if (fragile.isNotEmpty) {
-      alerts.add({
-        'level': 'warn',
-        'icon': Icons.warning_amber,
-        'title': 'Place fragile items last',
-        'body': 'Top layer only, nothing stacked above them.',
-      });
-    }
-
-    if (items.any((i) => i.glass)) {
-      alerts.add({
-        'level': 'warn',
-        'icon': Icons.wine_bar,
-        'title': 'Glass — wrap before packing',
-        'body': 'Bubble-wrap each glass jar individually.',
-      });
-    }
-
-    if (items.any((i) => i.leaks)) {
-      alerts.add({
-        'level': 'warn',
-        'icon': Icons.water_drop,
-        'title': 'Liquid — keep upright',
-        'body': 'Liquid items must be cap-side up.',
-      });
-    }
-
-    if (box.id == 'XS' && items.any((i) => i.weight >= 2)) {
-      alerts.add({
-        'level': 'danger',
-        'icon': Icons.dangerous,
-        'title': 'Items too large for XS box',
-        'body': 'Heavy grocery items need at least an S or M box.',
-      });
-    }
-
-    if (_checkedItems.isNotEmpty && heavy.isEmpty && items.any((i) => i.layer == 'top')) {
-      alerts.add({
-        'level': 'info',
-        'icon': Icons.info_outline,
-        'title': 'No base layer item',
-        'body': 'Add a heavy bottom-layer item first to stabilise the box.',
-      });
-    }
-
     if (alerts.isEmpty && _checkedItems.isNotEmpty) {
       alerts.add({
         'level': 'ok',
@@ -118,12 +93,11 @@ class _BoxSelectorScreenState extends State<BoxSelectorScreen> {
     return alerts;
   }
 
-  BoxSize? _bestFitBox() {
-    final items = MockData.items.where((it) => _checkedItems.contains(it.id)).toList();
+  BoxSize? _bestFitBox(List<OrderItem> items) {
     if (items.isEmpty) return null;
     
-    double totalW = items.fold(0, (sum, it) => sum + it.weight);
-    double totalVol = items.fold(0, (sum, it) => sum + it.volL);
+    double totalW = items.fold(0, (sum, it) => sum + _getItemWeight(it));
+    double totalVol = items.fold(0, (sum, it) => sum + _getItemVolL(it));
     
     for (var b in MockData.boxes) {
       if ((totalW + b.tare) <= b.maxKg * 0.9 && totalVol <= b.volL * 0.88) {
@@ -149,24 +123,29 @@ class _BoxSelectorScreenState extends State<BoxSelectorScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final order = context.watch<DispatchProvider>().selectedOrder;
+    if (order == null) {
+      return const Scaffold(body: Center(child: Text("No order selected")));
+    }
+    
     final box = _selectedBox;
-    final items = MockData.items.where((it) => _checkedItems.contains(it.id)).toList();
+    final allItems = order.items;
+    final items = allItems.where((it) => _checkedItems.contains(it.id)).toList();
     
-    double totalW = box.tare + items.fold(0, (sum, it) => sum + it.weight);
-    double totalVol = items.fold(0, (sum, it) => sum + it.volL);
+    double totalW = box.tare + items.fold(0, (sum, it) => sum + _getItemWeight(it));
+    double totalVol = items.fold(0, (sum, it) => sum + _getItemVolL(it));
     int loadPct = ((totalW / box.maxKg) * 100).round();
-    int volPct = ((totalVol / box.volL) * 100).round();
     
-    final alerts = _getAlerts();
+    final alerts = _getAlerts(items);
     final dangers = alerts.where((a) => a['level'] == 'danger').length;
     final warns = alerts.where((a) => a['level'] == 'warn').length;
     
-    final bestFit = _bestFitBox();
+    final bestFit = _bestFitBox(items);
 
     return Scaffold(
       backgroundColor: AppColors.bg,
       appBar: AppBar(
-        title: const Text('Box Size Selector'),
+        title: Text('Box Selector - ${order.orderNumber}'),
         leading: IconButton(icon: const Icon(Icons.arrow_back), onPressed: () => Navigator.pop(context)),
       ),
       body: Column(
@@ -230,7 +209,7 @@ class _BoxSelectorScreenState extends State<BoxSelectorScreen> {
                         Expanded(
                           child: ListView(
                             padding: const EdgeInsets.symmetric(vertical: 4),
-                            children: MockData.items.map((item) {
+                            children: allItems.map((item) {
                               final checked = _checkedItems.contains(item.id);
                               return InkWell(
                                 onTap: () {
@@ -258,12 +237,12 @@ class _BoxSelectorScreenState extends State<BoxSelectorScreen> {
                                         child: Column(
                                           crossAxisAlignment: CrossAxisAlignment.start,
                                           children: [
-                                            Text(item.name, style: const TextStyle(fontSize: 12, color: AppColors.textPrimary)),
-                                            Text(item.sub, style: const TextStyle(fontSize: 10, color: AppColors.textSecondary)),
+                                            Text(item.productName, style: const TextStyle(fontSize: 12, color: AppColors.textPrimary)),
+                                            Text('SKU: ${item.productSku}', style: const TextStyle(fontSize: 10, color: AppColors.textSecondary)),
                                           ],
                                         ),
                                       ),
-                                      Text('${item.weight.toStringAsFixed(2)} kg', style: const TextStyle(fontFamily: 'JetBrains Mono', fontSize: 11, color: AppColors.textSecondary)),
+                                      Text('${_getItemWeight(item).toStringAsFixed(2)} kg', style: const TextStyle(fontFamily: 'JetBrains Mono', fontSize: 11, color: AppColors.textSecondary)),
                                     ],
                                   ),
                                 ),
@@ -301,8 +280,11 @@ class _BoxSelectorScreenState extends State<BoxSelectorScreen> {
                           child: Row(
                             children: [
                               OutlinedButton(
-                                onPressed: () => setState(() => _checkedItems.clear()),
-                                child: const Text('Reset'),
+                                onPressed: () => setState(() {
+                                  _checkedItems.clear();
+                                  _checkedItems.addAll(allItems.map((i) => i.id));
+                                }),
+                                child: const Text('All'),
                               ),
                               const SizedBox(width: 8),
                               Expanded(
@@ -310,7 +292,7 @@ class _BoxSelectorScreenState extends State<BoxSelectorScreen> {
                                   onPressed: (items.isNotEmpty && dangers == 0) 
                                       ? () {
                                           final packProv = Provider.of<PackingProvider>(context, listen: false);
-                                          packProv.startPackingFlow(_selectedBox);
+                                          packProv.startPackingFlow(_selectedBox, items: items);
                                           Navigator.pushReplacementNamed(context, '/box-damage');
                                         }
                                       : null,
@@ -347,7 +329,7 @@ class _BoxSelectorScreenState extends State<BoxSelectorScreen> {
                         child: ListView(
                           padding: const EdgeInsets.all(8),
                           children: items.isEmpty
-                            ? [_buildAlertCard('info', Icons.info_outline, 'Ready', 'Tap items to pack them. Alerts appear as you go.')]
+                            ? [_buildAlertCard('info', Icons.info_outline, 'Ready', 'Select items to pack them. Alerts appear as you go.')]
                             : alerts.map((a) => _buildAlertCard(a['level'], a['icon'], a['title'], a['body'])).toList(),
                         ),
                       ),
@@ -361,7 +343,10 @@ class _BoxSelectorScreenState extends State<BoxSelectorScreen> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
-                                Text('${box.label} box · ${box.maxKg} kg max', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+                                Flexible(
+                                  child: Text('${box.label} · ${box.maxKg}kg', style: const TextStyle(fontSize: 10, color: AppColors.textSecondary), overflow: TextOverflow.ellipsis),
+                                ),
+                                const SizedBox(width: 4),
                                 Text('$loadPct%', style: const TextStyle(fontSize: 11, color: AppColors.textSecondary)),
                               ],
                             ),

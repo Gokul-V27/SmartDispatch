@@ -156,6 +156,26 @@ public class DataSeeder implements CommandLineRunner {
         order3.setItems(java.util.List.of(item4));
         orderRepository.save(order3);
 
+        Product redmi9Power = productRepository.save(Product.builder()
+                .sku("8906129038213").name("Redmi 9 Power").brand("Redmi")
+                .modelNumber("M2010J19SI").category("Electronics").color("Mighty Black")
+                .weightKg(0.198).weightToleranceG(20).price(new BigDecimal("10999"))
+                .specs("{\"ram\":\"4GB\",\"storage\":\"64GB\"}")
+                .imageUrls("https://images.unsplash.com/photo-1598327105666-5b89351cb31b?auto=format&fit=crop&w=600&q=80")
+                .description("Redmi 9 Power Mighty Black 64GB 4GB RAM").stockQty(150).build());
+
+        Order order4 = Order.builder()
+                .orderNumber("ORD-2024-8824")
+                .customer(customerUser)
+                .status(Order.OrderStatus.PENDING)
+                .totalAmount(new BigDecimal("10999"))
+                .shippingAddress(addressJson)
+                .build();
+        
+        OrderItem item5 = OrderItem.builder().order(order4).product(redmi9Power).quantity(1).build();
+        order4.setItems(java.util.List.of(item5));
+        orderRepository.save(order4);
+
         System.out.println("✅ Seed data loaded: comprehensive dataset.");
     }
 }

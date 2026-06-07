@@ -54,7 +54,7 @@ class OrderItem {
   final String productName;
   final String productBrand;
   final String productSku;
-  final String productColor;
+  String productColor;
   final int quantity;
   bool ocrVerified;
   bool visionVerified;

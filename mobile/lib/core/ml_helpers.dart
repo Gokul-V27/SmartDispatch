@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:camera/camera.dart';
 import 'package:flutter/services.dart';
 import 'package:google_mlkit_commons/google_mlkit_commons.dart';
+import 'package:path_provider/path_provider.dart';
 
 class MLHelpers {
   /// Checks if running on a real physical device
@@ -40,8 +41,14 @@ class MLHelpers {
 
     if (image.planes.isEmpty) return null;
 
+    final WriteBuffer allBytes = WriteBuffer();
+    for (final Plane plane in image.planes) {
+      allBytes.putUint8List(plane.bytes);
+    }
+    final bytes = allBytes.done().buffer.asUint8List();
+
     return InputImage.fromBytes(
-      bytes: image.planes[0].bytes,
+      bytes: bytes,
       metadata: InputImageMetadata(
         size: Size(image.width.toDouble(), image.height.toDouble()),
         rotation: rotation,
@@ -49,6 +56,18 @@ class MLHelpers {
         bytesPerRow: image.planes[0].bytesPerRow,
       ),
     );
+  }
+
+  /// Converts mobile_scanner JPEG bytes into ML Kit InputImage format
+  static Future<InputImage?> inputImageFromMobileScanner(Uint8List imageBytes) async {
+    try {
+      final tempDir = await getTemporaryDirectory();
+      final file = File('${tempDir.path}/temp_ocr_frame.jpg');
+      await file.writeAsBytes(imageBytes);
+      return InputImage.fromFilePath(file.path);
+    } catch (e) {
+      return null;
+    }
   }
 
   /// Fuzzy match ML Kit labels to a product category

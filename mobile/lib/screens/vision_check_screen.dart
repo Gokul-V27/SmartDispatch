@@ -16,6 +16,7 @@ class _VisionCheckScreenState extends State<VisionCheckScreen> {
   bool _analyzing = true;
   bool _anomalyDetected = false;
   bool _simFallback = false;
+  bool _isFlashOn = false;
   
   CameraController? _cameraController;
   final TextRecognizer _textRecognizer = TextRecognizer();
@@ -125,6 +126,12 @@ class _VisionCheckScreenState extends State<VisionCheckScreen> {
     }
   }
 
+  void _toggleFlash() {
+    if (_cameraController == null || !_cameraController!.value.isInitialized) return;
+    setState(() => _isFlashOn = !_isFlashOn);
+    _cameraController!.setFlashMode(_isFlashOn ? FlashMode.torch : FlashMode.off);
+  }
+
   @override
   void dispose() {
     _cameraController?.dispose();
@@ -214,6 +221,18 @@ class _VisionCheckScreenState extends State<VisionCheckScreen> {
                       child: Align(
                         alignment: Alignment.bottomCenter,
                         child: LinearProgressIndicator(color: AppColors.purple, backgroundColor: Colors.transparent),
+                      ),
+                    ),
+
+                  if (!_simFallback && !_analyzing)
+                    Positioned(
+                      top: 8,
+                      right: 8,
+                      child: IconButton(
+                        icon: Icon(_isFlashOn ? Icons.flash_on : Icons.flash_off),
+                        color: Colors.white,
+                        style: IconButton.styleFrom(backgroundColor: Colors.black54),
+                        onPressed: _toggleFlash,
                       ),
                     ),
                 ],

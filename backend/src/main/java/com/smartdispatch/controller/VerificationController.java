@@ -127,15 +127,46 @@ public class VerificationController {
         OrderItem item = itemOpt.get();
         Product expectedProduct = item.getProduct();
 
-        // Step 1: SKU match
-        boolean skuMatch = expectedProduct.getSku().equalsIgnoreCase(scannedSku.trim());
-
-        // Step 2: Lookup the scanned product to get its full details
-        var scannedProductOpt = productRepository.findBySku(scannedSku.trim());
-        Product scannedProduct = scannedProductOpt.orElse(null);
-
+        // Step 1 & 2: Match SKU and extract product
+        boolean isOcrText = scannedSku.length() > 25 || scannedSku.contains(" ");
+        
+        boolean skuMatch = false;
         boolean brandMatch = false;
         boolean colorMatch = false;
+        Product scannedProduct = null;
+        
+        if (isOcrText) {
+            // OCR Fallback mode: check if text contains identifying words
+            String lowerText = scannedSku.toLowerCase();
+            skuMatch = lowerText.contains(expectedProduct.getSku().toLowerCase());
+            
+            boolean nameMatch = lowerText.contains(expectedProduct.getName().toLowerCase()) || 
+                                (!expectedProduct.getModelNumber().isEmpty() && lowerText.contains(expectedProduct.getModelNumber().toLowerCase()));
+            brandMatch = lowerText.contains(expectedProduct.getBrand().toLowerCase());
+            colorMatch = expectedProduct.getColor() == null || expectedProduct.getColor().isEmpty() ||
+                         lowerText.contains(expectedProduct.getColor().toLowerCase());
+                         
+            // If barcode isn't readable, but brand and name are clearly in the text
+            if (!skuMatch && nameMatch && brandMatch) {
+                skuMatch = true; 
+            }
+            
+            if (skuMatch && brandMatch) {
+                scannedProduct = expectedProduct;
+            }
+        } else {
+            // Exact barcode mode
+            skuMatch = expectedProduct.getSku().equalsIgnoreCase(scannedSku.trim());
+            var scannedProductOpt = productRepository.findBySku(scannedSku.trim());
+            scannedProduct = scannedProductOpt.orElse(null);
+            
+            if (scannedProduct != null) {
+                brandMatch = expectedProduct.getBrand().equalsIgnoreCase(scannedProduct.getBrand());
+                colorMatch = expectedProduct.getColor() == null || expectedProduct.getColor().isEmpty()
+                        || expectedProduct.getColor().equalsIgnoreCase(scannedProduct.getColor());
+            }
+        }
+
         boolean weightMatch = false;
         String weightResult = "SKIP";
         double expectedWeight = 0;
@@ -144,10 +175,6 @@ public class VerificationController {
         double toleranceKg = 0;
 
         if (scannedProduct != null) {
-            brandMatch = expectedProduct.getBrand().equalsIgnoreCase(scannedProduct.getBrand());
-            colorMatch = expectedProduct.getColor() == null || expectedProduct.getColor().isEmpty()
-                    || expectedProduct.getColor().equalsIgnoreCase(scannedProduct.getColor());
-
             // Auto weight comparison from DB (no manual entry)
             if (expectedProduct.getWeightKg() != null && scannedProduct.getWeightKg() != null) {
                 expectedWeight = expectedProduct.getWeightKg() * item.getQuantity();
@@ -159,8 +186,8 @@ public class VerificationController {
             }
         }
 
-        boolean allPass = skuMatch && brandMatch && colorMatch && (weightMatch || weightResult.equals("SKIP"));
-        String overallResult = allPass ? "PASS" : "FAIL";
+        boolean identityPass = skuMatch && brandMatch;
+        String overallResult = identityPass ? "PASS" : "FAIL";
 
         // Log OCR verification
         VerificationLog ocrLog = VerificationLog.builder()
@@ -184,7 +211,7 @@ public class VerificationController {
         }
 
         if (skuMatch && brandMatch) { item.setOcrVerified(true); }
-        if (allPass) { item.setVisionVerified(true); }
+        if (identityPass) { item.setVisionVerified(true); }
         orderItemRepository.save(item);
 
         // Build comprehensive response

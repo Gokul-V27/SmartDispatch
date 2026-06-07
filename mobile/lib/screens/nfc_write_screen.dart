@@ -22,6 +22,7 @@ class _NfcWriteScreenState extends State<NfcWriteScreen> with SingleTickerProvid
   String _statusMessage = 'Ready to tag';
   bool _success = false;
   String? _error;
+  bool _nfcAvailable = true;
 
   @override
   void initState() {
@@ -31,8 +32,27 @@ class _NfcWriteScreenState extends State<NfcWriteScreen> with SingleTickerProvid
       duration: const Duration(seconds: 2),
     )..repeat();
 
+    _checkNfcAvailability();
+  }
+
+  Future<void> _checkNfcAvailability() async {
+    try {
+      final availability = await FlutterNfcKit.nfcAvailability;
+      if (availability != NFCAvailability.available) {
+        setState(() {
+          _nfcAvailable = false;
+          _statusMessage = 'NFC not available on this device. Simulator mode active.';
+        });
+      }
+    } catch (e) {
+      setState(() {
+        _nfcAvailable = false;
+        _statusMessage = 'NFC not available. Simulator mode active.';
+      });
+    }
+
     final packProv = Provider.of<PackingProvider>(context, listen: false);
-    if (packProv.isAutoProcessing) {
+    if (packProv.isAutoProcessing || !_nfcAvailable) {
       Future.delayed(const Duration(milliseconds: 1500), () {
         if (mounted) _startNfcProcess();
       });
@@ -48,7 +68,9 @@ class _NfcWriteScreenState extends State<NfcWriteScreen> with SingleTickerProvid
   Future<void> _startNfcProcess() async {
     setState(() {
       _isWriting = true;
-      _statusMessage = 'Hold the phone against the NFC tag on the box lid.';
+      _statusMessage = _nfcAvailable 
+          ? 'Hold phone flat against the NFC tag on box lid. Keep still for 3 seconds.' 
+          : 'Simulating NFC tag write and backend seal...';
       _error = null;
     });
 
@@ -57,25 +79,26 @@ class _NfcWriteScreenState extends State<NfcWriteScreen> with SingleTickerProvid
     
     try {
       final orderId = dp.selectedOrderId ?? 'UNKNOWN';
+      final order = dp.selectedOrder;
       
       // Build Payload
       final payloadData = {
         "orderId": orderId,
         "sessionId": const Uuid().v4(),
-        "packerId": "PKR-007", // Mock worker id
+        "packerId": "PKR-007", 
         "boxId": packProv.selectedBox?.id ?? 'UNKNOWN',
         "packedAt": DateTime.now().toIso8601String(),
-        "clientName": "Test Client",
-        "clientPhone": "+919876543210",
-        "clientEmail": "test@example.com",
+        "clientName": order?.customerName ?? "Test Client",
+        "clientPhone": "+919876543210", // In real app, fetch from order
+        "clientEmail": "client@example.com",
         "address": {
-          "line1": "42, Anna Nagar",
-          "city": "Chennai",
-          "pincode": "600040",
-          "state": "Tamil Nadu"
+          "line1": order?.shippingAddress ?? "123 Main St",
+          "city": "Unknown",
+          "pincode": "000000",
+          "state": "Unknown"
         },
         "items": packProv.packedItems.map((i) => {
-          "sku": i.productId,
+          "sku": i.productSku,
           "name": i.productName,
           "qty": i.quantity,
           "color": i.productColor,
@@ -87,7 +110,9 @@ class _NfcWriteScreenState extends State<NfcWriteScreen> with SingleTickerProvid
       final jsonStr = jsonEncode(payloadData);
       final encryptedPayload = CryptoUtils.encryptPayload(jsonStr);
 
-      if (packProv.isAutoProcessing) {
+      String tagId = const Uuid().v4();
+
+      if (packProv.isAutoProcessing || !_nfcAvailable) {
         // Simulating NFC hardware
         await Future.delayed(const Duration(seconds: 2));
       } else {
@@ -97,20 +122,29 @@ class _NfcWriteScreenState extends State<NfcWriteScreen> with SingleTickerProvid
           throw Exception('NDEF not available on this tag');
         }
         
+        tagId = tag.id; // Get physical tag ID
+        
         final record = ndef.TextRecord(text: encryptedPayload, language: 'en');
         await FlutterNfcKit.writeNDEFRecords([record]);
         await FlutterNfcKit.finish();
       }
 
-      // Notify backend that tag is sealed
-      // In a real app, you would POST to /api/nfc/seal here.
-      // For now, we simulate success and return to dashboard.
+      // Notify backend that tag is registered and sealed
+      final regSuccess = await packProv.registerNfcTag(tagId);
+      if (!regSuccess) {
+        throw Exception('Failed to register NFC tag with backend: ${packProv.error}');
+      }
+      
+      final sealSuccess = await packProv.sealNfcTag(tagId);
+      if (!sealSuccess) {
+        throw Exception('Failed to seal NFC tag with backend: ${packProv.error}');
+      }
 
       if (mounted) {
         setState(() {
           _success = true;
           _isWriting = false;
-          _statusMessage = 'Box tagged successfully';
+          _statusMessage = 'Box tagged and sealed successfully!';
         });
         
         Future.delayed(const Duration(seconds: 2), () {
@@ -151,6 +185,7 @@ class _NfcWriteScreenState extends State<NfcWriteScreen> with SingleTickerProvid
                 Text(
                   _statusMessage,
                   style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.teal),
+                  textAlign: TextAlign.center,
                 ),
               ] else ...[
                 Stack(
@@ -193,7 +228,7 @@ class _NfcWriteScreenState extends State<NfcWriteScreen> with SingleTickerProvid
                   ),
                 ],
                 const SizedBox(height: 48),
-                if (!_isWriting)
+                if (!_isWriting && _nfcAvailable)
                   ElevatedButton.icon(
                     onPressed: _startNfcProcess,
                     icon: Icon(_error != null ? Icons.refresh : Icons.play_arrow),
